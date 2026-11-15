@@ -835,7 +835,7 @@ function animateFx(t, dt) {
 /* 겹치는 구멍 좌표 태그를 위로 비켜 세우고, 원래 위치까지 가는 선을 그림 */
 function declutter() {
   const list = [];
-  stepTags.forEach(tags => tags.forEach(t => {
+  [...stepTags, LAB.trayTags || []].forEach(tags => tags.forEach(t => {
     const e = t.element;
     if (!t.visible || e.style.display === 'none') return;
     const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(e.style.transform);
@@ -952,8 +952,8 @@ function allBox() {
 function objBox(objs) {
   const b = new THREE.Box3(); objs.forEach(o => o && b.expandByObject(o));
   const sz = b.getSize(new THREE.Vector3());
-  if (sz.x < 14) b.expandByVector(new THREE.Vector3((14 - sz.x) / 2, 0, 0));
-  if (sz.z < 20) b.expandByVector(new THREE.Vector3(0, 0, (20 - sz.z) / 2));
+  if (sz.x < 26) b.expandByVector(new THREE.Vector3((26 - sz.x) / 2, 0, 0));
+  if (sz.z < 36) b.expandByVector(new THREE.Vector3(0, 0, (36 - sz.z) / 2));
   return b;
 }
 function flyTo(b, top, instant) {
@@ -992,6 +992,7 @@ function applyScene() {
     setOpacity(o, op);
   }));
   stepTags.forEach((tags, si) => tags.forEach(t => { t.visible = !!(build && showTags && (!all || STEPS[current].probe) && si === current); }));
+  (LAB.trayTags || []).forEach(t => { t.visible = build && current === 0; });
 }
 function retext() { allTags.forEach(o => { const e = o.element; e.textContent = e._text(); e._w = 0; }); }
 
@@ -1099,7 +1100,7 @@ function drawTft3D() {
 
 /* ================= 흐름: 14단계 (조립 → 점검 → 코드 → 실험) ================= */
 const FLOW = [
-  { id: 'parts', kind: 'parts', step: 0, short: '부품', title: '부품 준비하기', kicker: '준비' },
+  { id: 'parts', kind: 'parts', step: 0, short: '@부품', title: '부품 준비하기', kicker: '준비' },
   { id: 'rails', kind: 'build', step: 1, short: '전원' },
   { id: 'vmon', kind: 'build', step: 2, short: '5V 감시' },
   { id: 'load', kind: 'build', step: 3, short: '부하·션트' },
@@ -1181,18 +1182,18 @@ function tipList(st, cls = '') { return st.tips?.length ? `<ul class="tips ${cls
 const PARTS = [
   { key: 'esp', name: 'ESP32 DevKitC V4', q: 1, d: 'WROOM-32E. 측정·판정·제어, Wi-Fi 웹 서버' },
   { key: 'boards', name: '브레드보드 830홀', q: 2, d: '두 장 사이에 ESP32를 걸쳐 꽂음' },
-  { key: 'tft', name: '3.5인치 TFT LCD', q: 1, d: '480×320, ST7796S, SPI. 현장 대시보드' },
-  { key: 'relay', name: '릴레이 모듈 SRD-05VDC', q: 1, d: '5V 1채널. COM·NO로 부하 연결·차단' },
-  { key: 'ds', name: 'DS18B20 온도센서 모듈', q: 1, d: '1-Wire 디지털. +는 3V3' },
-  { key: 'buz', name: '수동 부저 모듈', q: 1, d: 'tone()으로 단계별 경보음' },
-  { key: 'rgb', name: 'RGB LED 모듈', q: 1, d: '초록 정상 · 노랑 주의 · 주황 경고 · 빨강 위험 · 파랑 TRIP' },
-  { key: 'button', name: '택트 스위치', q: 1, d: '부하 ON/OFF, TRIP 리셋' },
-  { key: 'R1,R2', name: '저항 10kΩ', q: 2, d: 'R1·R2 전압 분배 (갈·검·주)', b: [1, 0, 3] },
-  { key: 'RL1,저항(R),저항(G),저항(B)', name: '저항 330Ω', q: 4, d: 'RL1 부하 1개 + RGB 전류 제한 3개 (주·주·갈)', b: [3, 3, 1] },
-  { key: 'RS1,RS2,RL2,RL3', name: '저항 220Ω', q: 4, d: 'RS1·RS2 션트(병렬) + RL2·RL3 과전류 실험용 (빨·빨·갈)', b: [2, 2, 1] },
-  { key: 'C1,C2', name: '세라믹 콘덴서 100nF (104)', q: 2, d: 'C1·C2 ADC 입력 잡음 필터' },
+  { key: 'tft', tray: 'tft', name: '3.5인치 TFT LCD', q: 1, d: '480×320, ST7796S, SPI. 현장 대시보드' },
+  { key: 'relay', tray: 'relay', name: '릴레이 모듈 SRD-05VDC', q: 1, d: '5V 1채널. COM·NO로 부하 연결·차단' },
+  { key: 'ds', tray: 'ds', name: 'DS18B20 온도센서 모듈', q: 1, d: '1-Wire 디지털. +는 3V3' },
+  { key: 'buz', tray: 'buz', name: '수동 부저 모듈', q: 1, d: 'tone()으로 단계별 경보음' },
+  { key: 'rgb', tray: 'rgb', name: 'RGB LED 모듈', q: 1, d: '초록 정상 · 노랑 주의 · 주황 경고 · 빨강 위험 · 파랑 TRIP' },
+  { key: 'button', tray: 'button', name: '택트 스위치', q: 1, d: '부하 ON/OFF, TRIP 리셋' },
+  { key: 'R1,R2', tray: 'r10k', name: '저항 10kΩ', q: 2, d: 'R1·R2 전압 분배 (갈·검·주)', b: [1, 0, 3] },
+  { key: 'RL1,저항(R),저항(G),저항(B)', tray: 'r330', name: '저항 330Ω', q: 4, d: 'RL1 부하 1개 + RGB 전류 제한 3개 (주·주·갈)', b: [3, 3, 1] },
+  { key: 'RS1,RS2,RL2,RL3', tray: 'r220', name: '저항 220Ω', q: 4, d: 'RS1·RS2 션트(병렬) + RL2·RL3 과전류 실험용 (빨·빨·갈)', b: [2, 2, 1] },
+  { key: 'C1,C2', tray: 'cap', name: '세라믹 콘덴서 100nF (104)', q: 2, d: 'C1·C2 ADC 입력 잡음 필터' },
 ];
-function partObjs(key) { if (key === 'boards') return boards; return key.split(',').map(k => LAB.parts[k] || findRes(k)).filter(Boolean); }
+function partObjs(key, tray) { if (FLOW[fi].kind === 'parts' && tray && LAB.tray && LAB.tray[tray]) return [LAB.tray[tray]]; if (key === 'boards') return boards; return key.split(',').map(k => LAB.parts[k] || findRes(k)).filter(Boolean); }
 function findRes(name) { let f = null; stepGroups.forEach(objs => objs.forEach(o => { if (!f && o.userData.resName === name) f = o; })); return f; }
 const BC = { 0: '#1b1b1b', 1: '#7a4a1e', 2: '#d02a2a', 3: '#ef7d16' };
 
@@ -1350,6 +1351,45 @@ function makeThumbs() {
   ({ fi, MODE, current, showAll } = save); applyScene(); renderStrip();
 }
 
+/* ---------- 1단계: 부품을 작업대 앞에 늘어놓기 (실제 3D 부품을 복제해 진열) ---------- */
+function buildTray() {
+  LAB.tray = {}; LAB.trayTags = [];
+  const items = [
+    ['tft', LAB.parts.tft, null, '3.5인치 TFT LCD', 1],
+    ['relay', LAB.parts.relay, [-41, -25], '릴레이', 1],
+    ['ds', LAB.parts.ds, [-41, -12], 'DS18B20', 1, 1.3],
+    ['buz', LAB.parts.buz, [-41, -1], '부저', 1, 1.3],
+    ['rgb', LAB.parts.rgb, [-41, 10], 'RGB LED', 1, 1.3],
+    ['button', LAB.parts.button, [-41, 21], '버튼', 1, 1.6],
+    ['r10k', LAB.parts.R1, [-56, -22], '10kΩ', 2, 2],
+    ['r330', LAB.parts.RL1, [-56, -8], '330Ω', 4, 2],
+    ['r220', LAB.parts.RS1, [-56, 6], '220Ω', 4, 2],
+    ['cap', LAB.parts.C1, [-56, 20], '100nF', 2, 2],
+  ];
+  scene.updateMatrixWorld(true);
+  items.forEach(([key, orig, at, name, q, sc = 1]) => {
+    if (!orig) return;
+    const keep = []; orig.traverse(o => { keep.push([o, o.userData]); o.userData = {}; });
+    const cl = orig.clone(true);
+    keep.forEach(([o, u]) => { o.userData = u; });
+    const box = new THREE.Box3().setFromObject(orig, true), c = box.getCenter(new THREE.Vector3());
+    const wrap = new THREE.Group(); wrap.add(cl);
+    if (at) { cl.position.set(-c.x, -box.min.y, -c.z); wrap.scale.setScalar(sc); wrap.position.set(at[0], TABLE_Y + .05, at[1]); }
+    cl.traverse(o => { o.visible = true; if (o.isMesh) { o.userData.owner = wrap; pickables.push(o); } });
+    wrap.userData.info = orig.userData.info; wrap.userData.stepOnly = true;
+    scene.add(wrap); stepGroups[0].push(wrap); LAB.tray[key] = wrap;
+    const top = new THREE.Box3().setFromObject(wrap, true);
+    const p = top.getCenter(new THREE.Vector3()); p.y = top.max.y + 1.2;
+    const tg = tag(() => `${T(name)} ×${q}`, p, 'pin'); scene.add(tg); LAB.trayTags.push(tg);
+  });
+  // 보드에 이미 놓인 ESP32와 브레드보드에도 이름표
+  [[LAB.parts.esp, 'ESP32 DevKitC V4', 1], [boards[0], '브레드보드 830홀', 2]].forEach(([o, name, q]) => {
+    if (!o) return; const b = new THREE.Box3().setFromObject(o, true), p = b.getCenter(new THREE.Vector3()); p.y = b.max.y + 1.5;
+    if (o === boards[0]) { p.x = b.min.x + 2; }
+    const tg = tag(() => `${T(name)} ×${q}`, p, 'pin'); scene.add(tg); LAB.trayTags.push(tg);
+  });
+}
+
 /* ---------- 소리 (설정에서 켜면 부저를 스피커로) ---------- */
 let actx = null;
 function beep(freq, ms) {
@@ -1367,7 +1407,7 @@ document.addEventListener('click', e => {
   if (t.dataset.fi !== undefined) { go(+t.dataset.fi); return; }
   if (t.dataset.jump) { go(t.dataset.jump === 'run' ? FLOW.length - 1 : 0); return; }
   if (t.dataset.part !== undefined) {
-    const p = PARTS[+t.dataset.part]; const objs = partObjs(p.key);
+    const p = PARTS[+t.dataset.part]; const objs = partObjs(p.key, p.tray);
     focusTarget = objs; focusTarget.key = p.key;
     objs.forEach(o => { highlight(o, true); setTimeout(() => highlight(o, false), 1600); });
     renderPanel(); setView('part'); return;
@@ -1448,6 +1488,6 @@ try {
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
   ({ CSS2DRenderer, CSS2DObject } = await import('three/addons/renderers/CSS2DRenderer.js'));
   ({ RoundedBoxGeometry } = await import('three/addons/geometries/RoundedBoxGeometry.js'));
-  init(); retext(); applyScene(); setView(MODE === 'build' ? 'focus' : 'persp', true); drawTft3D(); startSim();
+  init(); buildTray(); retext(); applyScene(); setView(MODE === 'build' ? 'focus' : 'persp', true); drawTft3D(); startSim();
   requestAnimationFrame(() => { try { makeThumbs(); } catch (e) { console.warn(e); } });
 } catch (e) { console.error(e); $('err').hidden = false; startSim(); }
