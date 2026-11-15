@@ -857,10 +857,34 @@ function declutter() {
     else r.e.classList.remove('moved');
   });
 }
+/* 수정됨: 작업대 위에 겹친 카드(제목·측정값·그래프·흐름도)가 가리는 만큼을 재서
+   3D가 그 바깥(보이는 영역) 가운데에 오도록 카메라 화면 중심을 옮김 */
+let INS = { t: 0, b: 0, l: 0, r: 0 };
+function measureInsets() {
+  const st = view.getBoundingClientRect(), ins = { t: 0, b: 0, l: 0, r: 0 };
+  if (!st.width || !st.height) { INS = ins; return; }
+  const shown = el => el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  document.querySelectorAll('.stage .chip, .stage .tele, .stage .float').forEach(el => {
+    if (!shown(el)) return;
+    const r = el.getBoundingClientRect();
+    if (r.top - st.top < st.height * .45) ins.t = Math.max(ins.t, r.bottom - st.top + 6);
+    else ins.b = Math.max(ins.b, st.bottom - r.top + 6);
+  });
+  const tools = document.querySelector('.stage .tools');
+  if (shown(tools)) ins.r = Math.max(0, st.right - tools.getBoundingClientRect().left + 4);
+  const vy = ins.t + ins.b, vx = ins.l + ins.r;   // 가리는 부분이 너무 크면 비율을 줄여 3D 영역을 최소 40% 남김
+  if (vy > st.height * .6) { const k = st.height * .6 / vy; ins.t *= k; ins.b *= k; }
+  if (vx > st.width * .4) { const k = st.width * .4 / vx; ins.l *= k; ins.r *= k; }
+  INS = ins;
+}
 function resize() {
   const w = view.clientWidth, h = view.clientHeight;
+  if (!w || !h) return;
   renderer.setSize(w, h); labelRenderer.setSize(w, h);
-  camera.aspect = w / h; camera.updateProjectionMatrix();
+  camera.aspect = w / h;
+  measureInsets();
+  camera.setViewOffset(w, h, -(INS.l - INS.r) / 2, -(INS.t - INS.b) / 2, w, h);   // 화면 중심을 보이는 영역 가운데로
+  camera.updateProjectionMatrix();
 }
 
 /* ---------- 마우스: 이름 보기 + 클릭으로 조작 ---------- */
@@ -962,7 +986,10 @@ function flyTo(b, top, instant) {
   const dir = top ? new THREE.Vector3(-.001, 1, 0) : new THREE.Vector3(-.62, .78, 0).normalize();
   const vfov = THREE.MathUtils.degToRad(camera.fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
   const halfW = size.z / 2 * 1.08, halfH = (top ? size.x : size.x * .8 + size.y * .6) / 2 * 1.1;
-  const dist = Math.max(halfW / Math.tan(hfov / 2), halfH / Math.tan(vfov / 2), 18) + (top ? size.y : size.x * .3);
+  // 수정됨: 겹친 카드를 뺀 '보이는 영역'에 맞춰 거리를 잡음
+  const vw = view.clientWidth || 1, vh = view.clientHeight || 1;
+  const fx = Math.max(.4, (vw - INS.l - INS.r) / vw), fy = Math.max(.4, (vh - INS.t - INS.b) / vh);
+  const dist = Math.max(halfW / (Math.tan(hfov / 2) * fx), halfH / (Math.tan(vfov / 2) * fy), 18) + (top ? size.y : size.x * .3);
   const eye = target.clone().addScaledVector(dir, dist);
   if (instant || matchMedia('(prefers-reduced-motion: reduce)').matches) { camera.position.copy(eye); controls.target.copy(target); controls.update(); return; }
   const p0 = camera.position.clone(), t0 = controls.target.clone(); let k = 0;
@@ -1008,6 +1035,32 @@ const judgeLow = (x, t) => x <= t[2] ? 3 : x <= t[1] ? 2 : x <= t[0] ? 1 : 0;
 const c01 = x => Math.max(0, Math.min(1, x));
 const loadOhm = () => 1 / (1 / 330 + (S.rl2 ? 1 / 220 : 0) + (S.rl3 ? 1 / 220 : 0));
 const serialLines = [];
+const fx = (v, d) => (isFinite(v) ? v.toFixed(d) : '--');   // 온도 센서가 없을 때(nan) 대비
+/* 데이터 출처: 시뮬레이터 / 실제 보드(Web Serial) */
+const SRC = { real: false, port: null, reader: null, buf: '', lost: false };
+/* CSV 기록: 1초마다 한 줄 (최대 10시간) */
+const LOG = []; let pendingEvent = '';
+function logRow(src) {
+  const now = new Date(), pad = x => String(x).padStart(2, '0');
+  LOG.push([`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
+    (S.ms / 1000).toFixed(0), S.seq, S.V.toFixed(3), S.I.toFixed(1), isFinite(S.T) ? S.T.toFixed(2) : '', '0.0', S.dVdt.toFixed(4), S.dTdt.toFixed(2),
+    S.risk.toFixed(1), S.level, LV_TEXT[S.level], S.loadOn ? 1 : 0, S.latched ? 1 : 0, src, pendingEvent]);
+  pendingEvent = '';
+  if (LOG.length > 36000) LOG.shift();
+}
+function downloadCsv() {
+  if (!LOG.length) { flash(T('아직 기록이 없어요')); return; }
+  const head = 'time,elapsed_s,seq,vbus_V,current_mA,temp_C,soc,dVdt_V_per_min,dTdt_C_per_min,risk,level,level_name,load,trip,source,event';
+  const q = s => (/[",\n]/.test(String(s)) ? `"${String(s).replace(/"/g, '""')}"` : s);
+  const csv = '﻿' + head + '\n' + LOG.map(r => r.map(q).join(',')).join('\n') + '\n';
+  const a = document.createElement('a'), d = new Date(), pad = x => String(x).padStart(2, '0');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `esp32-bms-log-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  flash(F('csvSaved', { n: LOG.length }));
+}
+// 수정됨: 시리얼 맨 위에 열 이름 표시 (펌웨어 부팅 때 출력하는 것과 같은 형식)
+function serialHeader() { serial('# DATA,seq,ms,V,mA,degC,SOC,dVdt(V/min),dTdt(C/min),risk,level,load'); }
 function serial(s) { if (s) { const t = Math.floor(S.ms / 1000), hh = String(Math.floor(t / 3600)).padStart(2, '0'), mm = String(Math.floor(t / 60) % 60).padStart(2, '0'), ss = String(t % 60).padStart(2, '0'); s = `[${hh}:${mm}:${ss}] ${s}`; } serialLines.push(s); if (serialLines.length > 120) serialLines.shift(); const el = document.getElementById('serial'); if (el) { el.textContent = serialLines.join('\n'); el.scrollTop = el.scrollHeight; } }
 
 function simTick() {
@@ -1037,10 +1090,11 @@ function simTick() {
   const prev = S.level;
   S.level = lv; S.reason = why.length ? why.join(', ') : 'OK';
   S.mah += S.I / 3600;
-  if (lv !== prev) serial(`EVENT,${S.ms},${LV_TEXT[lv]},${LV_TEXT[prev]}-> ${LV_TEXT[lv]} (${S.reason})`);
-  if (lv === 3 && !S.latched) { S.latched = true; setLoad(false, true); serial(`EVENT,${S.ms},DANGER,Trip - relay off`); }
+  if (lv !== prev) { const ev = `${LV_TEXT[prev]}-> ${LV_TEXT[lv]} (${S.reason})`; serial(`EVENT,${S.ms},${LV_TEXT[lv]},${ev}`); pendingEvent = ev; }
+  if (lv === 3 && !S.latched) { S.latched = true; setLoad(false, true); serial(`EVENT,${S.ms},DANGER,Trip - relay off`); pendingEvent += (pendingEvent ? ' / ' : '') + 'Trip - relay off'; }
   S.hI.push(S.I); S.hT.push(S.T); if (S.hI.length > 120) { S.hI.shift(); S.hT.shift(); }
   serial(`DATA,${S.seq},${S.ms},${S.V.toFixed(3)},${S.I.toFixed(1)},${S.T.toFixed(2)},0.0,${S.dVdt.toFixed(4)},${S.dTdt.toFixed(2)},${S.risk.toFixed(1)},${S.level},${S.loadOn ? 1 : 0}`);
+  logRow('sim');
   drawTft3D(); updateLive(); if (typeof drawTrend === 'function') drawTrend();
 }
 function setLoad(on, quiet) {
@@ -1050,18 +1104,107 @@ function setLoad(on, quiet) {
   updateLive();
 }
 function tryReset() {
+  if (SRC.real) { sendCmd('reset'); return; }
   if (S.level === 3) { serial('# ' + T('아직 위험 조건이 남아 있어 리셋 불가')); flash(T('아직 위험 조건이 남아 있어 리셋할 수 없어요')); return; }
   if (!S.latched) return;
   S.latched = false; serial(`EVENT,${S.ms},${LV_TEXT[S.level]},Manual reset`); updateLive(); drawTft3D();
 }
-function pressButton() { FX.press = 1; if (S.latched) tryReset(); else setLoad(!S.loadOn); }
+function pressButton() {
+  FX.press = 1;
+  if (SRC.real) { sendCmd(S.latched ? 'reset' : S.loadOn ? 'off' : 'on'); return; }   // 실제 보드: 펌웨어 시리얼 명령
+  if (S.latched) tryReset(); else setLoad(!S.loadOn);
+}
+function simOnly() { if (!SRC.real) return false; flash(T('실제 보드에 연결된 동안에는 실제 부품을 바꿔서 실험하세요')); return true; }
 function doAction(a) {
   if (a === 'button') pressButton();
+  else if (simOnly()) return;
   else if (a === 'rl2' || a === 'rl3') { S[a] = !S[a]; applyScene(); serial(`# ${a.toUpperCase()} ${S[a] ? 'in' : 'out'}`); updateLive(); }
   else if (a === 'ds') { S.hand = !S.hand; if (S.hand) S.hot = false; updateLive(); }
 }
 let simTimer = null;
-function startSim() { clearInterval(simTimer); if (S.running) simTimer = setInterval(simTick, 1000 / S.speed); }
+function startSim() { clearInterval(simTimer); if (S.running && !SRC.real) simTimer = setInterval(simTick, 1000 / S.speed); }
+
+/* ================= 실제 보드 연결 (Web Serial, Chrome·Edge 데스크톱) =================
+   펌웨어가 1초마다 보내는 DATA,seq,ms,V,mA,degC,SOC,dVdt,dTdt,risk,level,load 줄을 읽어
+   시뮬레이터 대신 이 화면(3D TFT·측정값·그래프·CSV)을 움직임. 부하·리셋 버튼은 on/off/reset 명령을 보냄 */
+const serialOk = () => 'serial' in navigator && window.isSecureContext;
+async function connectBoard() {
+  if (!serialOk()) { flash(T('이 브라우저는 Web Serial을 지원하지 않아요. 데스크톱 Chrome이나 Edge에서 열어 주세요.')); return; }
+  let port;
+  try { port = await navigator.serial.requestPort(); }
+  catch (e) { return; }   // 사용자가 창을 닫음
+  try { await port.open({ baudRate: 115200 }); }
+  catch (e) { flash(T('포트를 열지 못했어요. Arduino IDE 시리얼 모니터를 닫고 다시 시도하세요.')); return; }
+  Object.assign(SRC, { real: true, port, buf: '', lost: false });
+  clearInterval(simTimer);
+  Object.assign(S, { hI: [], hT: [], latched: false, reason: 'OK', mins: -1 });
+  serial('# ' + T('실제 보드에 연결했어요') + ' · 115200'); serialHeader();
+  renderAll(); drawTft3D();
+  readLoop(port);
+}
+async function readLoop(port) {
+  const dec = new TextDecoder();
+  while (SRC.port === port && port.readable) {
+    const reader = port.readable.getReader(); SRC.reader = reader;
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        SRC.buf += dec.decode(value, { stream: true });
+        const parts = SRC.buf.split('\n'); SRC.buf = parts.pop();
+        if (SRC.buf.length > 2000) SRC.buf = '';
+        parts.forEach(l => { l = l.replace(/\r/g, '').trim(); if (l) onBoardLine(l); });
+      }
+    } catch (e) { SRC.lost = true; }
+    finally { try { reader.releaseLock(); } catch (e) {} if (SRC.reader === reader) SRC.reader = null; }
+    if (SRC.lost) break;
+  }
+  if (SRC.port === port) disconnectBoard(true);
+}
+async function disconnectBoard(lost) {
+  const port = SRC.port; SRC.real = false; SRC.port = null;
+  try { if (SRC.reader) await SRC.reader.cancel(); } catch (e) {}
+  try { if (port) await port.close(); } catch (e) {}
+  serial('# ' + T('보드 연결을 끊었어요 · 시뮬레이터로 돌아감'));
+  if (lost) flash(T('보드 연결이 끊어졌어요. 시뮬레이터로 돌아갑니다.'));
+  Object.assign(S, { hI: [], hT: [], latched: false, vEma: NaN, tEma: NaN, histV: [], histT: [], T: isFinite(S.T) ? S.T : 24.8 });
+  serialHeader(); startSim(); renderAll(); drawTft3D();
+}
+async function sendCmd(c) {
+  if (!SRC.port || !SRC.port.writable) return;
+  serial('> ' + c);
+  try { const w = SRC.port.writable.getWriter(); await w.write(new TextEncoder().encode(c + '\n')); w.releaseLock(); }
+  catch (e) { flash(T('명령을 보내지 못했어요')); }
+}
+function onBoardLine(line) {
+  if (line.startsWith('DATA,')) {
+    const p = line.split(',');
+    if (p.length < 12) { serial(line); return; }
+    const num = x => { const v = parseFloat(x); return isFinite(v) ? v : NaN; };
+    const load = p[11].trim() === '1';
+    if (load !== S.loadOn) FX.relayBump = 1;
+    Object.assign(S, { seq: +p[1] || 0, ms: +p[2] || 0, V: num(p[3]) || 0, I: num(p[4]) || 0, T: num(p[5]), dVdt: num(p[7]) || 0, dTdt: num(p[8]) || 0, risk: num(p[9]) || 0, level: Math.max(0, Math.min(3, +p[10] || 0)), loadOn: load });
+    if (S.level === 3) S.latched = true;          // 펌웨어는 위험이면 래치를 검
+    if (load) S.latched = false;                    // 래치 중에는 부하가 켜질 수 없음
+    if (S.level === 0) S.reason = 'OK';
+    S.mins = isFinite(S.T) && S.dTdt > .2 && S.T < 45 ? (45 - S.T) / S.dTdt : -1;
+    S.hI.push(S.I); S.hT.push(S.T); if (S.hI.length > 120) { S.hI.shift(); S.hT.shift(); }
+    serial(line); logRow('board');
+    drawTft3D(); updateLive(); drawTrend();
+    if (S.level === 3) beep(1800, 400); else if (S.level === 2) beep(1200, 120);
+    return;
+  }
+  if (line.startsWith('EVENT,')) {
+    const msg = line.split(',').slice(3).join(',');
+    const m = msg.match(/\(([^)]*)\)/); if (m) S.reason = m[1];
+    if (/trip/i.test(msg)) S.latched = true;
+    if (/reset/i.test(msg)) S.latched = false;
+    pendingEvent += (pendingEvent ? ' / ' : '') + msg;
+    serial(line); updateLive(); drawTft3D();
+    return;
+  }
+  serial(line);   // 부팅 메시지, '# ...' 명령 응답 등은 그대로 표시
+}
 
 /* ---------- TFT 화면 그리기 (펌웨어 tft_ui.h와 같은 배치) ---------- */
 function drawScreen(g) {
@@ -1073,7 +1216,7 @@ function drawScreen(g) {
   g.font = '700 26px "IBM Plex Sans KR", sans-serif'; g.textBaseline = 'alphabetic'; g.textAlign = 'left';
   g.fillText(S.latched ? 'TRIP - press reset' : LV_TEXT[S.level], 12, 32);
   g.font = '700 17px "IBM Plex Sans KR", sans-serif'; g.textAlign = 'right'; g.fillText(S.loadOn ? 'LOAD ON' : 'LOAD OFF', 468, 29); g.textAlign = 'left';
-  [['VBUS', S.V.toFixed(2), 'V'], ['CURRENT', S.I.toFixed(1), 'mA'], ['TEMP', S.T.toFixed(1), 'C'], ['RISK', String(Math.round(S.risk)), '/100']].forEach(([l, v, u], i) => {
+  [['VBUS', S.V.toFixed(2), 'V'], ['CURRENT', S.I.toFixed(1), 'mA'], ['TEMP', fx(S.T, 1), 'C'], ['RISK', String(Math.round(S.risk)), '/100']].forEach(([l, v, u], i) => {
     const tx = 8 + i * 120; g.fillStyle = '#1c2329'; g.fillRect(tx, 52, 112, 92);
     g.fillStyle = '#8fa0a8'; g.font = '14px "IBM Plex Mono", monospace'; g.fillText(l, tx + 10, 70); g.fillText(u, tx + 10, 134);
     g.fillStyle = i === 3 && S.risk >= 30 ? LV_HEX[S.risk >= 70 ? 3 : S.risk >= 50 ? 2 : 1] : '#e9eef0'; g.font = '700 30px "IBM Plex Mono", monospace'; g.fillText(v, tx + 10, 112);
@@ -1135,15 +1278,17 @@ function go(i, opts = {}) {
   document.body.dataset.kind = f.kind;
   renderAll();
   applyScene();
-  if (camera) setView(MODE === 'build' ? 'focus' : 'persp', !!opts.instant);
+  if (camera) { resize(); setView(MODE === 'build' ? 'focus' : 'persp', !!opts.instant); }
 }
 function renderAll() {
   const f = FLOW[fi];
   $('pnum').textContent = String(fi + 1).padStart(2, '0');
-  $('pkick').textContent = `${fKicker(f)} · ${F('stepOf', { n: FLOW.length, i: fi + 1 })}`;
+  $('pkick').textContent = `${f.kind === 'run' && SRC.real ? T('실제 보드') : fKicker(f)} · ${F('stepOf', { n: FLOW.length, i: fi + 1 })}`;
   $('ptitle').textContent = fTitle(f);
-  $('chipTitle').textContent = f.kind === 'run' ? T('가상 BMS 시험대') : T('작업대');
-  $('chipSub').textContent = f.kind === 'run' ? T('3D에서 버튼 · RL2 · RL3 · 온도센서를 눌러 보세요') : T('드래그 회전 · 휠 확대 · 부품에 마우스를 올려 보세요');
+  $('chipTitle').textContent = f.kind === 'run' ? (SRC.real ? T('실제 BMS 모니터') : T('가상 BMS 시험대')) : T('작업대');
+  $('srcBadge').textContent = SRC.real ? T('실제 보드') : T('시뮬레이터');
+  $('srcBadge').parentElement.classList.toggle('live', SRC.real);
+  $('chipSub').textContent = f.kind === 'run' ? (SRC.real ? T('보드에서 1초마다 받은 값으로 움직여요') : T('3D에서 버튼 · RL2 · RL3 · 온도센서를 눌러 보세요')) : T('드래그 회전 · 휠 확대 · 부품에 마우스를 올려 보세요');
   $('back').disabled = fi === 0;
   const nx = $('next');
   if (fi === FLOW.length - 1) { nx.innerHTML = `${esc(T('처음부터'))} <span aria-hidden="true">↺</span>`; }
@@ -1216,7 +1361,8 @@ function renderPanel() {
     h += `<p class="desc">${esc(T(st.desc))}</p><h3>${T('측정 위치')}</h3><ul class="rows">${probes.map(it => `<li><div class="rl"><b><span class="pnum mono">${esc(it.n)}</span>${esc(T(it.label))}</b><span>${esc(nice(it.at))}</span></div><div class="rc"><span class="val">${esc(T(it.expect))}</span></div></li>`).join('')}</ul>`;
     h += tipList(st);
     const fin = STEPS[12];
-    h += `<h3>${T('USB를 꽂기 전 체크리스트')}</h3><ul class="checks">${fin.tips.map((t, i) => `<li><label><input type="checkbox" id="ck${i}"> <span>${esc(T(t))}</span></label></li>`).join('')}</ul>`;
+    const done = loadChecks();   // 수정됨: 체크 상태를 브라우저에 저장
+    h += `<h3>${T('USB를 꽂기 전 체크리스트')} <small id="ckCount">${F('ckCount', { n: fin.tips.filter((_, i) => done[i]).length, m: fin.tips.length })}</small></h3><ul class="checks">${fin.tips.map((t, i) => `<li><label><input type="checkbox" id="ck${i}"${done[i] ? ' checked' : ''}> <span>${esc(T(t))}</span></label></li>`).join('')}</ul><button type="button" class="linkbtn" id="ckClear">${T('체크 모두 지우기')}</button>`;
     h += pinsHtml();
     h += troubleHtml();
   } else if (f.kind === 'code') {
@@ -1227,6 +1373,12 @@ function renderPanel() {
   panelBody.innerHTML = h;
   panelBody.scrollTop = 0;
   if (f.kind === 'run') { const el = $('serial'); if (el) { el.textContent = serialLines.join('\n'); el.scrollTop = el.scrollHeight; } }
+}
+function loadChecks() { try { return JSON.parse(localStorage.getItem('bms-checks') || '{}'); } catch (e) { return {}; } }
+function saveChecks() {
+  const o = {}; document.querySelectorAll('.checks input').forEach((c, i) => { if (c.checked) o[i] = 1; });
+  try { localStorage.setItem('bms-checks', JSON.stringify(o)); } catch (e) {}
+  const el = $('ckCount'); if (el) el.textContent = F('ckCount', { n: Object.keys(o).length, m: document.querySelectorAll('.checks input').length });
 }
 function pinsHtml() {
   const rows = [];
@@ -1245,6 +1397,7 @@ let codeKey = 'cfg';
 function codeHtml() {
   const lang = window.I18N.lang, src = CODE[codeKey].src[lang] || CODE[codeKey].src.en || CODE[codeKey].src.ko;
   return `<p class="desc">${esc(T('ESP32_BMS_TFT v3 펌웨어를 Arduino IDE로 올립니다. 아래는 핵심 코드 일부예요.'))}</p>
+  <a class="dlcard" href="firmware/ESP32_BMS_TFT_v3.zip" download><span class="dlic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></span><span><b>${esc(T('펌웨어 내려받기'))}</b><small class="mono">ESP32_BMS_TFT_v3.zip · 21 KB · .ino + config.h + tft_ui.h + dashboard.h</small></span></a>
   <ol class="nums"><li>${esc(T('Arduino IDE → 보드 매니저에서 esp32 (Espressif) 설치, 보드는 ESP32 Dev Module'))}</li><li>${esc(T('라이브러리 매니저에서 OneWire, LovyanGFX 설치'))}</li><li>${esc(T('압축을 푼 폴더에서 ESP32_BMS_TFT.ino를 열고 업로드'))}</li><li>${esc(T('부팅 화면에 FW v3가 보이면 성공'))}</li></ol>
   <div class="term code"><div class="ttabs" role="tablist">${Object.keys(CODE).map(k => `<button role="tab" type="button" data-code="${k}" aria-selected="${k === codeKey}">${esc(T(CODE[k].tab))}</button>`).join('')}</div><pre tabindex="0">${hl(src)}</pre>
   <div class="tfoot"><span class="mono">${esc(CODE[codeKey].file)}</span><button class="mini" id="copyCode" type="button">${T('코드 복사')}</button></div></div>`;
@@ -1258,22 +1411,27 @@ function hl(src) {
   }).join('\n');
 }
 
-function sw(id, label, on, dot) { return `<div class="swrow"><span>${dot ? `<i class="ldot" style="background:${dot}"></i>` : ''}${esc(label)}</span><button type="button" class="switch" role="switch" id="${id}" aria-checked="${!!on}" aria-label="${esc(label)}"><i></i></button></div>`; }
+function sw(id, label, on, dot) { return `<div class="swrow"><span>${dot ? `<i class="ldot" style="background:${dot}"></i>` : ''}${esc(label)}</span><button type="button" class="switch" role="switch" id="${id}" aria-checked="${!!on}" aria-label="${esc(label)}"${SRC.real ? ' disabled' : ''}><i></i></button></div>`; }
 function runHtml() {
   const lv = (n, t) => `<span class="lv lv${n}">${t}</span>`;
-  return `<p class="desc">${esc(T('시뮬레이션 BMS는 실제 펌웨어와 같은 규칙으로 판정합니다. 부하를 켜고, 저항을 더 꽂고, 센서를 데워 보며 경고와 차단을 확인해 보세요.'))}</p>
+  const dis = SRC.real ? ' disabled' : '', ok = serialOk();
+  const conn = `<div class="srcbox${SRC.real ? ' on' : ''}"><span class="srcdot" aria-hidden="true"></span><div class="srct"><b>${esc(SRC.real ? T('실제 보드 연결됨') : T('실제 보드 연결'))}</b><span>${esc(SRC.real ? T('측정값은 보드에서 옵니다. 부하·리셋 버튼은 보드에 on · off · reset 명령을 보내요.') : ok ? T('ESP32를 USB로 꽂고 연결하면 시리얼 DATA로 이 화면을 움직여요. Arduino IDE 시리얼 모니터는 닫아 두세요.') : T('이 브라우저는 지원하지 않아요. 데스크톱 Chrome이나 Edge에서 열어 주세요.'))}</span></div><button type="button" class="${SRC.real ? 'ghostbtn' : 'ybtn'} sm" id="aConn"${ok ? '' : ' disabled'}>${esc(SRC.real ? T('연결 끊기') : T('연결'))}</button></div>`;
+  return `${conn}<p class="desc">${esc(SRC.real ? T('실제 보드의 판정 결과를 그대로 보여 줍니다. 저항을 더 꽂거나 센서를 손으로 쥐어 보며 변화를 확인해 보세요.') : T('시뮬레이션 BMS는 실제 펌웨어와 같은 규칙으로 판정합니다. 부하를 켜고, 저항을 더 꽂고, 센서를 데워 보며 경고와 차단을 확인해 보세요.'))}</p>
   <h3>${T('부하')}</h3>
   <div class="loadbox"><button type="button" class="power" id="aLoad" aria-pressed="${S.loadOn}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8" /><path d="M6.4 6.6a8 8 0 1 0 11.2 0" /></svg></button>
     <div class="loadtxt"><b id="aLoadTxt"></b><span id="aLoadSub"></span></div>
     <button type="button" class="ybtn sm" id="aReset">${T('TRIP 리셋')}</button></div>
+  <div class="simonly${SRC.real ? ' off' : ''}">${SRC.real ? `<p class="note">${esc(T('아래 가상 조작은 시뮬레이터 전용이에요. 연결을 끊으면 다시 쓸 수 있어요.'))}</p>` : ''}
   ${sw('aRL2', T('RL2 220Ω 꽂기'), S.rl2, '#d02a2a')}${sw('aRL3', T('RL3 220Ω 꽂기'), S.rl3, '#d02a2a')}
   <h3>${T('시험 상황')}</h3>
-  <div class="seg" role="radiogroup" aria-label="${esc(T('온도'))}"><button type="button" role="radio" data-heat="none">${T('평상시')}</button><button type="button" role="radio" data-heat="hand">${T('손으로 쥐기')}</button><button type="button" role="radio" data-heat="hot">${T('뜨거운 물')}</button></div>
+  <div class="seg" role="radiogroup" aria-label="${esc(T('온도'))}"><button type="button" role="radio" data-heat="none"${dis}>${T('평상시')}</button><button type="button" role="radio" data-heat="hand"${dis}>${T('손으로 쥐기')}</button><button type="button" role="radio" data-heat="hot"${dis}>${T('뜨거운 물')}</button></div>
+  <p class="hint">${esc(T('뜨거운 물에서는 45°C에 닿기 전에 위험이 뜰 수 있어요. 온도가 1분에 6°C 넘게 빨리 오르면 온도 상승률 기준으로 먼저 차단하기 때문이에요.'))}</p>
   ${sw('aUV', T('저전압 (R2에 10kΩ 병렬)'), S.uv)}${sw('aOV', T('과전압 (3V3 → GPIO34)'), S.ov)}
   <div class="slrow"><label for="aSpeed">${T('시간 배속')}</label><b class="mono" id="aSpeedV"></b></div>
-  <input type="range" id="aSpeed" min="1" max="20" step="1" value="${S.speed}">
+  <input type="range" id="aSpeed" min="1" max="20" step="1" value="${S.speed}"${dis}></div>
   <div class="keys"><span><kbd>Space</kbd> ${T('부하')}</span><span><kbd>2</kbd><kbd>3</kbd> RL2·RL3</span><span><kbd>H</kbd> ${T('손으로 쥐기')}</span><span><kbd>R</kbd> ${T('리셋')}</span><span><kbd>←</kbd><kbd>→</kbd> ${T('단계')}</span></div>
-  <div class="term"><div class="thead"><span>${T('시리얼 모니터')} · 115200</span><span><button class="mini" id="aRun" type="button"></button> <button class="mini" id="aClear" type="button">${T('지우기')}</button></span></div><pre id="serial" tabindex="0"></pre></div>
+  <div class="term"><div class="thead"><span>${T('시리얼 모니터')} · 115200${SRC.real ? ' · LIVE' : ''}</span><span>${SRC.real ? '' : `<button class="mini" id="aRun" type="button"></button> `}<button class="mini" id="aCsv" type="button" title="${esc(T('기록을 CSV 파일로 저장'))}">${T('CSV 저장')}</button> <button class="mini" id="aClear" type="button">${T('지우기')}</button></span></div><pre id="serial" tabindex="0"></pre></div>
+  <p class="hint">${esc(T('DATA 열 순서는 맨 위 # 줄과 같아요. SOC 열은 배터리가 없어 항상 0이에요(펌웨어 출력 형식을 맞추려고 남겨 둔 칸). CSV에는 1초마다 한 줄씩 최대 10시간이 쌓여요.'))}</p>
   <details class="more"><summary>${T('4단계 판정 기준')}</summary><table class="num"><thead><tr><th>${T('항목')}</th><th>${lv(1, T('주의'))}</th><th>${lv(2, T('경고'))}</th><th>${lv(3, T('위험'))}</th></tr></thead><tbody>
     <tr><td>${T('과전압 (V)')}</td><td>≥ 5.25</td><td>≥ 5.40</td><td>≥ 5.60</td></tr><tr><td>${T('저전압 (V)')}</td><td>≤ 4.40</td><td>≤ 4.20</td><td>≤ 4.00</td></tr>
     <tr><td>${T('과전류 (mA)')}</td><td>≥ 15.0</td><td>≥ 18.0</td><td>≥ 23.5</td></tr><tr><td>${T('과열 (°C)')}</td><td>≥ 32</td><td>≥ 38</td><td>≥ 45</td></tr>
@@ -1287,7 +1445,7 @@ function updateLive() {
   const lvTxt = S.latched && S.level < 3 ? 'TRIP' : T(LV_KO[S.level]);
   const col = S.latched && S.level < 3 ? '#2563c9' : LV_HEX[S.level];
   if ($('tV')) {
-    $('tV').textContent = S.V.toFixed(2); $('tI').textContent = S.I.toFixed(1); $('tT').textContent = S.T.toFixed(1); $('tR').textContent = Math.round(S.risk);
+    $('tV').textContent = S.V.toFixed(2); $('tI').textContent = S.I.toFixed(1); $('tT').textContent = fx(S.T, 1); $('tR').textContent = Math.round(S.risk);
     $('stLv').textContent = lvTxt; $('stLv').parentElement.style.setProperty('--c', col);
   }
   if ($('fcState')) {
@@ -1301,27 +1459,34 @@ function updateLive() {
   $('aLoad').setAttribute('aria-pressed', String(S.loadOn)); $('aLoad').disabled = S.latched;
   $('aLoad').setAttribute('aria-label', S.loadOn ? T('부하 끄기') : T('부하 켜기'));
   $('aLoadTxt').textContent = S.latched ? 'TRIP' : S.loadOn ? 'LOAD ON' : 'LOAD OFF';
+  $('aLoad').disabled = S.latched && !SRC.real;
   $('aLoadSub').textContent = S.latched ? T('위험 감지로 차단됨 · 리셋 필요') : S.loadOn ? F('loadNow', { i: S.I.toFixed(1) }) : T('버튼을 눌러 부하 켜기');
   $('aReset').disabled = !S.latched;
   [['aRL2', S.rl2], ['aRL3', S.rl3], ['aUV', S.uv], ['aOV', S.ov]].forEach(([id, v]) => $(id).setAttribute('aria-checked', String(!!v)));
   const heat = S.hot ? 'hot' : S.hand ? 'hand' : 'none';
   document.querySelectorAll('[data-heat]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.heat === heat)));
   $('aSpeedV').textContent = `×${S.speed}`;
-  $('aRun').textContent = S.running ? T('멈추기') : T('다시 시작');
+  if ($('aRun')) $('aRun').textContent = S.running ? T('멈추기') : T('다시 시작');
 }
 function drawTrend() {
   const cv = $('trend'); if (!cv || FLOW[fi].kind !== 'run') return;
   const g = cv.getContext('2d'), W = cv.width, H = cv.height;
   g.clearRect(0, 0, W, H);
-  const X = i => 6 + i / 119 * (W - 12), off = 120 - S.hI.length;
+  // 수정됨: 데이터가 적을 때는 쌓인 만큼만 가로로 펼침 (최소 30초 폭, 최대 120초)
+  const n = S.hI.length, span = Math.max(30, n) - 1, off = Math.max(0, span + 1 - n);
+  const X = i => 6 + i / span * (W - 12);
   g.strokeStyle = '#e1dccd'; g.lineWidth = 1;
   for (let k = 0; k <= 4; k++) { const y = 8 + k * (H - 16) / 4; g.beginPath(); g.moveTo(6, y); g.lineTo(W - 6, y); g.stroke(); }
+  g.fillStyle = '#8a8370'; g.font = '600 19px "Roboto Condensed", sans-serif'; g.textBaseline = 'top';
+  g.textAlign = 'left'; g.fillText(`−${span + 1}s`, 10, 10); g.textAlign = 'right'; g.fillText(SRC.real ? 'LIVE' : 'SIM', W - 10, 10); g.textAlign = 'left';
   const line = (data, lo, hi, col, limit) => {
     const Y = v => H - 8 - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo) * (H - 16);
     g.strokeStyle = col; g.globalAlpha = .45; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(6, Y(limit)); g.lineTo(W - 6, Y(limit)); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
     if (data.length < 2) return;
-    g.lineWidth = 2.5; g.beginPath(); data.forEach((v, i) => { i ? g.lineTo(X(i + off), Y(v)) : g.moveTo(X(i + off), Y(v)); }); g.stroke();
-    g.fillStyle = col; g.beginPath(); g.arc(X(119), Y(data[data.length - 1]), 3.5, 0, 7); g.fill();
+    g.lineWidth = 2.5; g.beginPath(); let pen = false;
+    data.forEach((v, i) => { if (!isFinite(v)) { pen = false; return; } pen ? g.lineTo(X(i + off), Y(v)) : g.moveTo(X(i + off), Y(v)); pen = true; }); g.stroke();
+    if (!isFinite(data[data.length - 1])) return;
+    g.fillStyle = col; g.beginPath(); g.arc(X(span), Y(data[data.length - 1]), 3.5, 0, 7); g.fill();
   };
   line(S.hT, 20, 50, '#f6c047', 45);
   line(S.hI, 0, 40, '#1e3a5c', 23.5);
@@ -1413,7 +1578,7 @@ document.addEventListener('click', e => {
     renderPanel(); setView('part'); return;
   }
   if (t.dataset.code) { codeKey = t.dataset.code; renderPanel(); return; }
-  if (t.dataset.heat) { S.hand = t.dataset.heat === 'hand'; S.hot = t.dataset.heat === 'hot'; updateLive(); return; }
+  if (t.dataset.heat) { if (simOnly()) return; S.hand = t.dataset.heat === 'hand'; S.hot = t.dataset.heat === 'hot'; updateLive(); return; }
   switch (t.id) {
     case 'back': go(fi - 1); break;
     case 'next': go(fi === FLOW.length - 1 ? 0 : fi + 1); break;
@@ -1425,14 +1590,18 @@ document.addEventListener('click', e => {
     case 'vHome': setView(MODE === 'build' ? 'focus' : 'persp'); break;
     case 'tags': showTags = !showTags; PREF.tags = showTags; savePref(); t.setAttribute('aria-pressed', String(showTags)); applyScene(); break;
     case 'aLoad': pressButton(); break;
+    case 'aConn': SRC.real ? disconnectBoard(false) : connectBoard(); return;
+    case 'aCsv': downloadCsv(); return;
+    case 'ckClear': document.querySelectorAll('.checks input').forEach(c => { c.checked = false; }); saveChecks(); return;
+    case 'vCards': PREF.cards = !$('stage').classList.toggle('nocards'); savePref(); t.setAttribute('aria-pressed', String(!PREF.cards)); if (camera) { resize(); setView(viewMode === 'top' ? 'top' : MODE === 'build' ? 'focus' : 'persp'); } return;
     case 'fcBtn': pressButton(); break;
     case 'aReset': FX.press = 1; tryReset(); break;
     case 'aRL2': doAction('rl2'); break;
     case 'aRL3': doAction('rl3'); break;
-    case 'aUV': S.uv = !S.uv; if (S.uv) S.ov = false; break;
-    case 'aOV': S.ov = !S.ov; if (S.ov) S.uv = false; break;
+    case 'aUV': if (simOnly()) return; S.uv = !S.uv; if (S.uv) S.ov = false; break;
+    case 'aOV': if (simOnly()) return; S.ov = !S.ov; if (S.ov) S.uv = false; break;
     case 'aRun': S.running = !S.running; startSim(); break;
-    case 'aClear': serialLines.length = 0; $('serial').textContent = ''; break;
+    case 'aClear': serialLines.length = 0; $('serial').textContent = ''; serialHeader(); break;
     case 'copyCode': {
       const lang = window.I18N.lang, src = CODE[codeKey].src[lang] || CODE[codeKey].src.en || CODE[codeKey].src.ko;
       navigator.clipboard.writeText(src).then(() => flash(T('코드를 복사했어요')), () => flash(T('복사가 막혔어요. 코드를 직접 선택해 복사하세요.'))); break;
@@ -1441,22 +1610,25 @@ document.addEventListener('click', e => {
     case 'setClose': $('settings').hidden = true; $('gear').focus(); break;
     case 'setSound': PREF.sound = !PREF.sound; savePref(); t.setAttribute('aria-checked', String(PREF.sound)); if (PREF.sound) beep(1200, 120); break;
     case 'setTags': showTags = !showTags; PREF.tags = showTags; savePref(); t.setAttribute('aria-checked', String(showTags)); $('tags').setAttribute('aria-pressed', String(showTags)); applyScene(); break;
-    case 'setReset': Object.assign(S, { loadOn: true, rl2: false, rl3: false, hand: false, hot: false, uv: false, ov: false, latched: false, level: 0, T: 24.8, histV: [], histT: [], hI: [], hT: [], vEma: NaN, tEma: NaN, mah: 0 }); serialLines.length = 0; serial('# reset'); applyScene(); renderPanel(); updateLive(); flash(T('시뮬레이션을 처음 상태로 되돌렸어요')); break;
+    case 'setReset': if (simOnly()) return; Object.assign(S, { loadOn: true, rl2: false, rl3: false, hand: false, hot: false, uv: false, ov: false, latched: false, level: 0, T: 24.8, histV: [], histT: [], hI: [], hT: [], vEma: NaN, tEma: NaN, mah: 0 }); serialLines.length = 0; serial('# reset'); serialHeader(); applyScene(); renderPanel(); updateLive(); flash(T('시뮬레이션을 처음 상태로 되돌렸어요')); break;
     default: return;
   }
   updateLive();
 });
+document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.checks input')) saveChecks(); });
 document.addEventListener('input', e => { if (e.target.id === 'aSpeed') { S.speed = +e.target.value; startSim(); updateLive(); } });
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') { $('settings').hidden = true; } });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('settings').hidden) { $('settings').hidden = true; return; }
   if (e.target.closest('input,textarea,select,[role=tab]') || e.ctrlKey || e.metaKey || e.altKey) return;
+  // 수정됨: 버튼·스위치에 포커스가 있으면 Space/Enter는 그 버튼이 받도록 단축키를 건너뜀
+  if ((e.key === ' ' || e.key === 'Enter') && e.target.closest('button,a,summary,[role=switch],[role=radio]')) return;
   if (e.key === 'ArrowRight') { go(fi + 1); e.preventDefault(); }
   else if (e.key === 'ArrowLeft') { go(fi - 1); e.preventDefault(); }
   else if (FLOW[fi].kind === 'run') {
     const k = e.key.toLowerCase();
     if (k === ' ') { pressButton(); e.preventDefault(); } else if (k === '2') doAction('rl2'); else if (k === '3') doAction('rl3');
-    else if (k === 'h') { S.hand = !S.hand; if (S.hand) S.hot = false; } else if (k === 'r') { FX.press = 1; tryReset(); } else return;
+    else if (k === 'h') { if (simOnly()) return; S.hand = !S.hand; if (S.hand) S.hot = false; } else if (k === 'r') { FX.press = 1; tryReset(); } else return;
     updateLive();
   }
 });
@@ -1480,7 +1652,9 @@ langSel.addEventListener('change', () => { window.I18N.set(langSel.value); apply
 showTags = PREF.tags !== false;
 const h0 = FLOW.findIndex(f => f.id === location.hash.slice(1));
 fi = h0 >= 0 ? h0 : FLOW.length - 1;            // 첫 화면: 실험해 보기
+serialHeader();
 for (let k = 0; k < 8; k++) simTick();
+if (PREF.cards === false) { $('stage').classList.add('nocards'); $('vCards').setAttribute('aria-pressed', 'true'); }
 go(fi, { fromHash: true });
 applyLang();
 try {
@@ -1488,6 +1662,7 @@ try {
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
   ({ CSS2DRenderer, CSS2DObject } = await import('three/addons/renderers/CSS2DRenderer.js'));
   ({ RoundedBoxGeometry } = await import('three/addons/geometries/RoundedBoxGeometry.js'));
-  init(); buildTray(); retext(); applyScene(); setView(MODE === 'build' ? 'focus' : 'persp', true); drawTft3D(); startSim();
+  init(); buildTray(); retext(); applyScene(); resize(); setView(MODE === 'build' ? 'focus' : 'persp', true); drawTft3D(); startSim();
+  if (document.fonts) document.fonts.ready.then(() => { resize(); setView(viewMode === 'top' ? 'top' : MODE === 'build' ? 'focus' : 'persp', true); });
   requestAnimationFrame(() => { try { makeThumbs(); } catch (e) { console.warn(e); } });
 } catch (e) { console.error(e); $('err').hidden = false; startSim(); }

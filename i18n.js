@@ -3,6 +3,33 @@ window.I18N = (() => {
   const LANGS = { ko: '한국어', en: 'English', ja: '日本語', zh: '中文' };
   const IDX = { en: 0, ja: 1, zh: 2 };
   const D = {
+"아직 기록이 없어요": ["No data logged yet", "まだ記録がありません", "还没有记录"],
+"실제 보드 연결됨": ["Real board connected", "実機ボード接続中", "已连接实际板"],
+"실제 보드 연결": ["Connect real board", "実機ボードを接続", "连接实际板"],
+"측정값은 보드에서 옵니다. 부하·리셋 버튼은 보드에 on · off · reset 명령을 보내요.": ["Readings come from the board. The load and reset buttons send on · off · reset commands to it.", "測定値はボードから届きます。負荷・リセットボタンはボードに on · off · reset コマンドを送ります。", "读数来自板子。负载和复位按钮会向板子发送 on · off · reset 命令。"],
+"ESP32를 USB로 꽂고 연결하면 시리얼 DATA로 이 화면을 움직여요. Arduino IDE 시리얼 모니터는 닫아 두세요.": ["Plug the ESP32 in over USB and connect: its serial DATA lines drive this screen. Close the Arduino IDE Serial Monitor first.", "ESP32をUSBでつないで接続すると、シリアルのDATAでこの画面が動きます。Arduino IDEのシリアルモニタは閉じてください。", "用 USB 接上 ESP32 并连接后，串口 DATA 会驱动这个画面。请先关闭 Arduino IDE 串口监视器。"],
+"이 브라우저는 지원하지 않아요. 데스크톱 Chrome이나 Edge에서 열어 주세요.": ["This browser doesn't support it. Open the page in desktop Chrome or Edge.", "このブラウザは対応していません。デスクトップ版のChromeかEdgeで開いてください。", "此浏览器不支持。请用桌面版 Chrome 或 Edge 打开。"],
+"연결 끊기": ["Disconnect", "切断", "断开"],
+"연결": ["Connect", "接続", "连接"],
+"실제 보드의 판정 결과를 그대로 보여 줍니다. 저항을 더 꽂거나 센서를 손으로 쥐어 보며 변화를 확인해 보세요.": ["Shows the real board's own verdicts. Add resistors or hold the sensor in your hand and watch the readings change.", "実機ボードの判定結果をそのまま表示します。抵抗を追加したり、センサーを手で握ったりして変化を確かめましょう。", "直接显示实际板的判定结果。多插电阻或用手握住传感器，观察变化。"],
+"아래 가상 조작은 시뮬레이터 전용이에요. 연결을 끊으면 다시 쓸 수 있어요.": ["The virtual controls below only work in the simulator. Disconnect to use them again.", "下の仮想操作はシミュレーター専用です。切断すると再び使えます。", "下面的虚拟操作仅用于模拟器。断开连接后可再次使用。"],
+"뜨거운 물에서는 45°C에 닿기 전에 위험이 뜰 수 있어요. 온도가 1분에 6°C 넘게 빨리 오르면 온도 상승률 기준으로 먼저 차단하기 때문이에요.": ["In hot water, DANGER can appear before 45°C: if the temperature climbs faster than 6°C per minute, the temperature-rise rule trips first.", "お湯では45°Cに届く前に危険になることがあります。温度が1分に6°C以上速く上がると、温度上昇率の基準で先に遮断するためです。", "在热水中，可能在达到 45°C 之前就出现危险：温度每分钟上升超过 6°C 时，会先按温升率规则切断。"],
+"기록을 CSV 파일로 저장": ["Save the log as a CSV file", "記録をCSVファイルに保存", "将记录保存为 CSV 文件"],
+"CSV 저장": ["Save CSV", "CSV保存", "保存 CSV"],
+"DATA 열 순서는 맨 위 # 줄과 같아요. SOC 열은 배터리가 없어 항상 0이에요(펌웨어 출력 형식을 맞추려고 남겨 둔 칸). CSV에는 1초마다 한 줄씩 최대 10시간이 쌓여요.": ["DATA columns follow the # line at the top. SOC is always 0 because there is no battery (the column is kept to match the firmware output). The CSV keeps one row per second, up to 10 hours.", "DATAの列順は先頭の # 行と同じです。電池がないためSOC列は常に0です（ファームウェアの出力形式に合わせて残しています）。CSVには1秒ごとに1行、最大10時間分がたまります。", "DATA 列顺序与顶部 # 行相同。因为没有电池，SOC 列始终为 0（保留它是为了与固件输出格式一致）。CSV 每秒一行，最多保存 10 小时。"],
+"실제 BMS 모니터": ["Live BMS monitor", "実機BMSモニター", "实际 BMS 监视"],
+"실제 보드": ["Real board", "実機", "实际板"],
+"보드에서 1초마다 받은 값으로 움직여요": ["Driven by values received from the board every second", "ボードから1秒ごとに受け取った値で動きます", "由板子每秒发来的数值驱动"],
+"펌웨어 내려받기": ["Download firmware", "ファームウェアをダウンロード", "下载固件"],
+"체크 모두 지우기": ["Clear all checks", "チェックをすべて外す", "清除全部勾选"],
+"그래프·흐름도 카드 숨기기": ["Hide chart and flow cards", "グラフ・フローのカードを隠す", "隐藏图表和流程卡片"],
+"실제 보드에 연결된 동안에는 실제 부품을 바꿔서 실험하세요": ["While connected to the real board, experiment by changing the real parts", "実機に接続中は、実際の部品を変えて実験してください", "连接实际板时，请通过更换实际元件来做实验"],
+"이 브라우저는 Web Serial을 지원하지 않아요. 데스크톱 Chrome이나 Edge에서 열어 주세요.": ["This browser doesn't support Web Serial. Open the page in desktop Chrome or Edge.", "このブラウザはWeb Serialに対応していません。デスクトップ版のChromeかEdgeで開いてください。", "此浏览器不支持 Web Serial。请用桌面版 Chrome 或 Edge 打开。"],
+"포트를 열지 못했어요. Arduino IDE 시리얼 모니터를 닫고 다시 시도하세요.": ["Couldn't open the port. Close the Arduino IDE Serial Monitor and try again.", "ポートを開けませんでした。Arduino IDEのシリアルモニタを閉じてもう一度お試しください。", "无法打开端口。请关闭 Arduino IDE 串口监视器后重试。"],
+"실제 보드에 연결했어요": ["Connected to the real board", "実機に接続しました", "已连接实际板"],
+"보드 연결을 끊었어요 · 시뮬레이터로 돌아감": ["Board disconnected · back to the simulator", "ボードを切断しました · シミュレーターに戻ります", "已断开板子 · 返回模拟器"],
+"보드 연결이 끊어졌어요. 시뮬레이터로 돌아갑니다.": ["The board connection was lost. Switching back to the simulator.", "ボードとの接続が切れました。シミュレーターに戻ります。", "与板子的连接已断开，返回模拟器。"],
+"명령을 보내지 못했어요": ["Couldn't send the command", "コマンドを送れませんでした", "命令发送失败"],
 "@부품": [
 "Parts",
 "部品",
@@ -1851,6 +1878,8 @@ window.I18N = (() => {
 };
   const FMT = {
 "ko": {
+"csvSaved": "CSV로 {n}줄 저장했어요",
+"ckCount": "{n}/{m} 완료",
 "hole": "{b} 보드 {cr}",
 "holeEsp": " (ESP32 {esp} 줄)",
 "boardL": "아래",
@@ -1887,6 +1916,8 @@ window.I18N = (() => {
 "runaway": "이대로면 약 {m}분 뒤 45°C 도달 예상"
 },
 "en": {
+"csvSaved": "Saved {n} rows to CSV",
+"ckCount": "{n}/{m} done",
 "hole": "{b} board {cr}",
 "holeEsp": " (ESP32 {esp} row)",
 "boardL": "Lower",
@@ -1923,6 +1954,8 @@ window.I18N = (() => {
 "runaway": "At this rate 45°C in about {m} min"
 },
 "ja": {
+"csvSaved": "CSVに{n}行保存しました",
+"ckCount": "{n}/{m} 完了",
 "hole": "{b}ボード {cr}",
 "holeEsp": "（ESP32 {esp} の行）",
 "boardL": "下",
@@ -1959,6 +1992,8 @@ window.I18N = (() => {
 "runaway": "このままだと約{m}分で45°Cに到達"
 },
 "zh": {
+"csvSaved": "已保存 {n} 行到 CSV",
+"ckCount": "已完成 {n}/{m}",
 "hole": "{b}面包板 {cr}",
 "holeEsp": "（ESP32 {esp} 所在行）",
 "boardL": "下",
