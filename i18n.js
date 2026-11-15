@@ -3,7 +3,11 @@ window.I18N = (() => {
   const LANGS = { ko: '한국어', en: 'English', ja: '日本語', zh: '中文' };
   const IDX = { en: 0, ja: 1, zh: 2 };
   const D = {
-"@부품": ["Parts", "部品", "元件"],
+"@부품": [
+"Parts",
+"部品",
+"元件"
+],
 "빨강": [
 "Red",
 "赤",
@@ -1463,6 +1467,381 @@ window.I18N = (() => {
 "The 3D view could not load. Check your internet connection and refresh.",
 "3D画面を読み込めませんでした。インターネット接続を確認して再読み込みしてください。",
 "无法加载 3D 画面。请检查网络连接后刷新。"
+],
+"부품 준비하기": [
+"Gather the parts",
+"部品をそろえる",
+"准备元件"
+],
+"전원": [
+"Power",
+"電源",
+"电源"
+],
+"5V 감시": [
+"5V monitor",
+"5V監視",
+"5V 监测"
+],
+"부하·션트": [
+"Load & shunt",
+"負荷・シャント",
+"负载与分流"
+],
+"릴레이": [
+"Relay",
+"リレー",
+"继电器"
+],
+"부저": [
+"Buzzer",
+"ブザー",
+"蜂鸣器"
+],
+"온도센서": [
+"Temp sensor",
+"温度センサ",
+"温度传感器"
+],
+"버튼": [
+"Button",
+"ボタン",
+"按键"
+],
+"TFT 전원": [
+"TFT power",
+"TFT電源",
+"TFT 电源"
+],
+"TFT 신호": [
+"TFT signals",
+"TFT信号",
+"TFT 信号"
+],
+"점검": [
+"Check",
+"チェック",
+"检查"
+],
+"점검하기": [
+"Check the build",
+"チェックする",
+"检查电路"
+],
+"코드 올리기": [
+"Upload the code",
+"コードを書き込む",
+"上传代码"
+],
+"운전": [
+"Run",
+"運転",
+"运行"
+],
+"BMS 운전해 보기": [
+"Run the BMS",
+"BMSを運転してみよう",
+"运行 BMS"
+],
+"시뮬레이션": [
+"Simulation",
+"シミュレーション",
+"仿真"
+],
+"가상 BMS 시험대": [
+"Virtual BMS test bench",
+"仮想BMSテストベンチ",
+"虚拟 BMS 试验台"
+],
+"작업대": [
+"Workbench",
+"作業台",
+"工作台"
+],
+"3D에서 버튼 · RL2 · RL3 · 온도센서를 눌러 보세요": [
+"Click the button · RL2 · RL3 · temperature sensor in 3D",
+"3Dでボタン・RL2・RL3・温度センサをクリックしてみよう",
+"在 3D 中点击按键 · RL2 · RL3 · 温度传感器试试"
+],
+"드래그 회전 · 휠 확대 · 부품에 마우스를 올려 보세요": [
+"Drag to rotate · wheel to zoom · hover a part",
+"ドラッグで回転・ホイールで拡大・部品にマウスを乗せてみよう",
+"拖动旋转 · 滚轮缩放 · 鼠标悬停查看元件"
+],
+"처음부터": [
+"Start over",
+"最初から",
+"从头开始"
+],
+"다음": [
+"Next",
+"次へ",
+"下一步"
+],
+"꽂을 부품": [
+"Parts to place",
+"挿す部品",
+"要插的元件"
+],
+"점퍼선": [
+"Jumper wires",
+"ジャンパー線",
+"跳线"
+],
+"실습 키트 부품과 USB 5V 하나로 만듭니다. 배터리는 쓰지 않고, 5V 전원 자체를 감시하는 BMS예요.": [
+"Built from the lab kit and a single USB 5V supply. No battery: this BMS watches the 5V supply itself.",
+"実習キットの部品とUSB 5Vだけで作ります。バッテリーは使わず、5V電源そのものを監視するBMSです。",
+"只用实验套件元件和一路 USB 5V 搭建。不用电池，这个 BMS 直接监测 5V 电源本身。"
+],
+"누르면 3D에서 위치를 보여 줘요": [
+"Click one to see where it goes in 3D",
+"クリックすると3Dで位置を表示します",
+"点击可在 3D 中显示位置"
+],
+"브레드보드 읽는 법": [
+"Reading the breadboard",
+"ブレッドボードの読み方",
+"面包板的读法"
+],
+"점퍼선 색": [
+"Jumper colors",
+"ジャンパーの色",
+"跳线颜色"
+],
+"확인할 점": [
+"Things to check",
+"確認ポイント",
+"注意事项"
+],
+"측정 위치": [
+"Test points",
+"測定ポイント",
+"测量点"
+],
+"USB를 꽂기 전 체크리스트": [
+"Checklist before plugging in USB",
+"USBを挿す前のチェックリスト",
+"插 USB 前的检查清单"
+],
+"ESP32_BMS_TFT v3 펌웨어를 Arduino IDE로 올립니다. 아래는 핵심 코드 일부예요.": [
+"Upload the ESP32_BMS_TFT v3 firmware with the Arduino IDE. Below are the key parts of the code.",
+"ESP32_BMS_TFT v3ファームウェアをArduino IDEで書き込みます。下はコードの要点です。",
+"用 Arduino IDE 上传 ESP32_BMS_TFT v3 固件。下面是核心代码节选。"
+],
+"Arduino IDE → 보드 매니저에서 esp32 (Espressif) 설치, 보드는 ESP32 Dev Module": [
+"Arduino IDE → Boards Manager: install esp32 (Espressif), board ESP32 Dev Module",
+"Arduino IDE → ボードマネージャでesp32（Espressif）をインストール、ボードはESP32 Dev Module",
+"Arduino IDE → 开发板管理器安装 esp32 (Espressif)，开发板选 ESP32 Dev Module"
+],
+"라이브러리 매니저에서 OneWire, LovyanGFX 설치": [
+"Library Manager: install OneWire and LovyanGFX",
+"ライブラリマネージャでOneWire、LovyanGFXをインストール",
+"在库管理器中安装 OneWire、LovyanGFX"
+],
+"압축을 푼 폴더에서 ESP32_BMS_TFT.ino를 열고 업로드": [
+"Open ESP32_BMS_TFT.ino from the unzipped folder and upload",
+"解凍したフォルダのESP32_BMS_TFT.inoを開いて書き込み",
+"打开解压文件夹中的 ESP32_BMS_TFT.ino 并上传"
+],
+"부팅 화면에 FW v3가 보이면 성공": [
+"Success when the boot screen shows FW v3",
+"起動画面にFW v3が表示されれば成功",
+"开机画面显示 FW v3 即为成功"
+],
+"시뮬레이션 BMS는 실제 펌웨어와 같은 규칙으로 판정합니다. 부하를 켜고, 저항을 더 꽂고, 센서를 데워 보며 경고와 차단을 확인해 보세요.": [
+"The simulated BMS judges with the same rules as the real firmware. Turn the load on, add resistors and warm the sensor to see warnings and the cut-off.",
+"シミュレーションBMSは実際のファームウェアと同じ規則で判定します。負荷を入れ、抵抗を足し、センサを温めて警告と遮断を確かめてみましょう。",
+"仿真 BMS 使用与真实固件相同的规则判定。打开负载、加插电阻、加热传感器，观察警告和切断。"
+],
+"온도": [
+"Temperature",
+"温度",
+"温度"
+],
+"평상시": [
+"Normal",
+"通常",
+"平常"
+],
+"손으로 쥐기": [
+"Hold in hand",
+"手で握る",
+"用手握住"
+],
+"뜨거운 물": [
+"Hot water",
+"お湯",
+"热水"
+],
+"시간 배속": [
+"Time speed",
+"時間倍速",
+"时间倍速"
+],
+"리셋": [
+"Reset",
+"リセット",
+"复位"
+],
+"단계": [
+"Steps",
+"ステップ",
+"步骤"
+],
+"정상": [
+"Normal",
+"正常",
+"正常"
+],
+"TRIP: 부하 차단됨": [
+"TRIP: load cut off",
+"TRIP：負荷を遮断",
+"TRIP：负载已切断"
+],
+"정상: 부하에 전류가 흐르는 중": [
+"Normal: current is flowing to the load",
+"正常：負荷に電流が流れています",
+"正常：负载有电流流过"
+],
+"정상: 부하 꺼짐": [
+"Normal: load off",
+"正常：負荷オフ",
+"正常：负载关闭"
+],
+"아직 위험 조건이 남아 있어요": [
+"A danger condition is still present",
+"まだ危険条件が残っています",
+"危险条件仍然存在"
+],
+"원인이 사라졌어요. 리셋하면 다시 켤 수 있어요": [
+"The cause is gone. Reset to turn the load back on",
+"原因がなくなりました。リセットすると再び入れられます",
+"原因已消除。复位后即可重新打开"
+],
+"측정 → 필터 → 판정 → 보호를 1초마다 반복": [
+"Measure → filter → judge → protect, every second",
+"測定 → フィルタ → 判定 → 保護を毎秒くり返す",
+"测量 → 滤波 → 判定 → 保护，每秒循环"
+],
+"위험 감지로 차단됨 · 리셋 필요": [
+"Cut off on danger · reset needed",
+"危険検出で遮断・リセットが必要",
+"因检测到危险而切断 · 需要复位"
+],
+"버튼을 눌러 부하 켜기": [
+"Press the button to turn the load on",
+"ボタンを押して負荷を入れる",
+"按下按键打开负载"
+],
+"시뮬레이션을 처음 상태로 되돌렸어요": [
+"The simulation is back to its starting state",
+"シミュレーションを最初の状態に戻しました",
+"仿真已恢复到初始状态"
+],
+"USB 5V로 만드는 배터리 관리 시스템": [
+"Battery management system built on USB 5V",
+"USB 5Vで作るバッテリー管理システム",
+"用 USB 5V 搭建的电池管理系统"
+],
+"소스 코드": [
+"Source code",
+"ソースコード",
+"源代码"
+],
+"설정": [
+"Settings",
+"設定",
+"设置"
+],
+"시뮬레이터": [
+"Simulator",
+"シミュレータ",
+"仿真器"
+],
+"전류": [
+"Current",
+"電流",
+"电流"
+],
+"위험도": [
+"Risk",
+"危険度",
+"危险度"
+],
+"상태": [
+"Status",
+"状態",
+"状态"
+],
+"확대": [
+"Zoom in",
+"拡大",
+"放大"
+],
+"축소": [
+"Zoom out",
+"縮小",
+"缩小"
+],
+"처음 시점": [
+"Reset view",
+"視点をリセット",
+"重置视角"
+],
+"위에서 보기": [
+"Top view",
+"上から見る",
+"俯视"
+],
+"전류와 온도 2분 추이": [
+"Current and temperature, last 2 minutes",
+"電流と温度の2分間の推移",
+"电流和温度 2 分钟趋势"
+],
+"필터": [
+"Filter",
+"フィルタ",
+"滤波"
+],
+"판정": [
+"Judge",
+"判定",
+"判定"
+],
+"이전 단계들": [
+"Earlier steps",
+"前のステップ",
+"前面的步骤"
+],
+"다음 단계들": [
+"Later steps",
+"次のステップ",
+"后面的步骤"
+],
+"뒤로": [
+"Back",
+"戻る",
+"返回"
+],
+"부저 소리를 스피커로 듣기": [
+"Play the buzzer through the speakers",
+"ブザー音をスピーカーで鳴らす",
+"用扬声器播放蜂鸣声"
+],
+"조립 단계에서 구멍 좌표 표시": [
+"Show hole labels in build steps",
+"組立ステップで穴の座標を表示",
+"组装步骤中显示孔位标签"
+],
+"시뮬레이션 초기화": [
+"Reset simulation",
+"シミュレーションを初期化",
+"重置仿真"
+],
+"닫기": [
+"Close",
+"閉じる",
+"关闭"
 ]
 };
   const FMT = {
@@ -1497,7 +1876,10 @@ window.I18N = (() => {
 "prep": "준비물: 수-수(M-M) 점퍼 {mm}개, 암-수(F-M) 점퍼 {fm}개(릴레이·TFT용). 저항 10kΩ×2(R1·R2), 330Ω×4(RL1·RGB 3개), 220Ω×4(RL2·RL3·RS1·RS2), 100nF×2.",
 "pinRowL": "아래쪽 줄 {r}행",
 "pinRowR": "위쪽 줄 {r}행",
-"stepN": "{i}단계"
+"stepN": "{i}단계",
+"stepOf": "{n}단계 중 {i}단계",
+"loadNow": "지금 {i} mA 흐르는 중",
+"runaway": "이대로면 약 {m}분 뒤 45°C 도달 예상"
 },
 "en": {
 "hole": "{b} board {cr}",
@@ -1530,7 +1912,10 @@ window.I18N = (() => {
 "prep": "You need: {mm} male-male jumpers and {fm} female-male jumpers (relay and TFT). Resistors 10kΩ×2 (R1, R2), 330Ω×4 (RL1, RGB ×3), 220Ω×4 (RL2, RL3, RS1, RS2), 100nF×2.",
 "pinRowL": "lower row, row {r}",
 "pinRowR": "upper row, row {r}",
-"stepN": "step {i}"
+"stepN": "step {i}",
+"stepOf": "step {i} of {n}",
+"loadNow": "{i} mA flowing now",
+"runaway": "At this rate 45°C in about {m} min"
 },
 "ja": {
 "hole": "{b}ボード {cr}",
@@ -1563,7 +1948,10 @@ window.I18N = (() => {
 "prep": "用意するもの：オス-オス(M-M)ジャンパー {mm}本、メス-オス(F-M)ジャンパー {fm}本（リレー・TFT用）。抵抗 10kΩ×2（R1・R2）、330Ω×4（RL1・RGB 3本）、220Ω×4（RL2・RL3・RS1・RS2）、100nF×2。",
 "pinRowL": "下側列 {r}行",
 "pinRowR": "上側列 {r}行",
-"stepN": "ステップ{i}"
+"stepN": "ステップ{i}",
+"stepOf": "{n}ステップ中 {i}",
+"loadNow": "いま {i} mA 流れています",
+"runaway": "このままだと約{m}分で45°Cに到達"
 },
 "zh": {
 "hole": "{b}面包板 {cr}",
@@ -1596,7 +1984,10 @@ window.I18N = (() => {
 "prep": "准备：公-公(M-M)跳线 {mm} 根，母-公(F-M)跳线 {fm} 根（继电器、TFT 用）。电阻 10kΩ×2（R1、R2），330Ω×4（RL1、RGB 3 个），220Ω×4（RL2、RL3、RS1、RS2），100nF×2。",
 "pinRowL": "下排第 {r} 行",
 "pinRowR": "上排第 {r} 行",
-"stepN": "第 {i} 步"
+"stepN": "第 {i} 步",
+"stepOf": "第 {i} 步，共 {n} 步",
+"loadNow": "当前电流 {i} mA",
+"runaway": "照此速度约 {m} 分钟后达到 45°C"
 }
 };
   let lang = 'ko';

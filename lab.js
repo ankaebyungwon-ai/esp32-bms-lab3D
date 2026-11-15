@@ -745,15 +745,17 @@ function init() {
   view.appendChild(renderer.domElement);
   labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
   scene = new THREE.Scene();
-  scene.background = new THREE.Color('#41565f');
+  scene.background = new THREE.Color('#f3efe3');
   camera = new THREE.PerspectiveCamera(36, 1, 2, 1500);
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.maxPolarAngle = Math.PI * .49;
   scene.add(new THREE.HemisphereLight('#ffffff', '#5b6b70', 1.5));
   const sun = new THREE.DirectionalLight('#ffffff', 1.7); sun.position.set(-30, 90, 60); scene.add(sun);
   const fill = new THREE.DirectionalLight('#ffffff', .55); fill.position.set(50, 40, -50); scene.add(fill);
-  const table = new THREE.Mesh(new THREE.PlaneGeometry(500, 400), M('#3d525b', { roughness: .95 }));
+  const table = new THREE.Mesh(new THREE.PlaneGeometry(500, 400), M('#ece6d6', { roughness: .95 }));
   table.rotation.x = -Math.PI / 2; table.position.y = TABLE_Y - .01; scene.add(table);
+  const grid = new THREE.GridHelper(400, 80, '#d9d2bf', '#e2dccb'); grid.position.y = TABLE_Y; scene.add(grid);
+  scene.fog = new THREE.Fog('#f3efe3', 260, 560);
   boards = [buildBoard('L'), buildBoard('R')]; boards.forEach(b => scene.add(b));
   const foam = rbox(5.8, 3.0, 64, M('#efe7c8', { roughness: 1 }), -6, -2.0, 0, .3); scene.add(foam);
   const esp = espBoard(); scene.add(esp); esp.userData.always = true; stepGroups[0].push(esp);
@@ -935,8 +937,8 @@ function stepBox() {
   if (!b.isEmpty()) {
     b.expandByVector(new THREE.Vector3(3, 0, 3)); b.max.y = 5;
     const sz = b.getSize(new THREE.Vector3());
-    if (sz.x < 28) b.expandByVector(new THREE.Vector3((28 - sz.x) / 2, 0, 0));
-    if (sz.z < 36) b.expandByVector(new THREE.Vector3(0, 0, (36 - sz.z) / 2));
+    if (sz.x < 34) b.expandByVector(new THREE.Vector3((34 - sz.x) / 2, 0, 0));
+    if (sz.z < 46) b.expandByVector(new THREE.Vector3(0, 0, (46 - sz.z) / 2));
     if (STEPS[current].probe) b.expandByVector(new THREE.Vector3(2, 0, 9));
   }
   return b;
@@ -970,10 +972,11 @@ function flyTo(b, top, instant) {
 function setView(mode, instant = false) {
   viewMode = mode;
   if (mode === 'top') flyTo(allBox(), true, instant);
-  else if (mode === 'focus' && MODE === 'build' && !STEPS[current].all && STEPS[current].items.length) flyTo(stepBox(), false, instant);
-  else if (mode === 'focus' && MODE === 'parts' && focusTarget) flyTo(objBox(focusTarget), false, instant);
+  else if (mode === 'focus' && MODE === 'build' && (!STEPS[current].all || STEPS[current].probe) && STEPS[current].items.length) flyTo(stepBox(), false, instant);
+  else if (mode === 'part' && focusTarget) flyTo(objBox(focusTarget), false, instant);
   else flyTo(allBox(), false, instant);
   document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === viewMode)));
+  if (typeof onViewChange === 'function') onViewChange();
 }
 
 /* ---------- 장면 적용 ---------- */
@@ -989,7 +992,6 @@ function applyScene() {
     setOpacity(o, op);
   }));
   stepTags.forEach((tags, si) => tags.forEach(t => { t.visible = !!(build && showTags && (!all || STEPS[current].probe) && si === current); }));
-  document.getElementById('viewbar').dataset.mode = MODE;
 }
 function retext() { allTags.forEach(o => { const e = o.element; e.textContent = e._text(); e._w = 0; }); }
 
@@ -1005,7 +1007,7 @@ const judgeLow = (x, t) => x <= t[2] ? 3 : x <= t[1] ? 2 : x <= t[0] ? 1 : 0;
 const c01 = x => Math.max(0, Math.min(1, x));
 const loadOhm = () => 1 / (1 / 330 + (S.rl2 ? 1 / 220 : 0) + (S.rl3 ? 1 / 220 : 0));
 const serialLines = [];
-function serial(s) { serialLines.push(s); if (serialLines.length > 120) serialLines.shift(); const el = document.getElementById('serial'); if (el) { el.textContent = serialLines.join('\n'); el.scrollTop = el.scrollHeight; } }
+function serial(s) { if (s) { const t = Math.floor(S.ms / 1000), hh = String(Math.floor(t / 3600)).padStart(2, '0'), mm = String(Math.floor(t / 60) % 60).padStart(2, '0'), ss = String(t % 60).padStart(2, '0'); s = `[${hh}:${mm}:${ss}] ${s}`; } serialLines.push(s); if (serialLines.length > 120) serialLines.shift(); const el = document.getElementById('serial'); if (el) { el.textContent = serialLines.join('\n'); el.scrollTop = el.scrollHeight; } }
 
 function simTick() {
   S.ms += 1000; S.seq++;
@@ -1038,7 +1040,7 @@ function simTick() {
   if (lv === 3 && !S.latched) { S.latched = true; setLoad(false, true); serial(`EVENT,${S.ms},DANGER,Trip - relay off`); }
   S.hI.push(S.I); S.hT.push(S.T); if (S.hI.length > 120) { S.hI.shift(); S.hT.shift(); }
   serial(`DATA,${S.seq},${S.ms},${S.V.toFixed(3)},${S.I.toFixed(1)},${S.T.toFixed(2)},0.0,${S.dVdt.toFixed(4)},${S.dTdt.toFixed(2)},${S.risk.toFixed(1)},${S.level},${S.loadOn ? 1 : 0}`);
-  drawTft3D(); updateLive();
+  drawTft3D(); updateLive(); if (typeof drawTrend === 'function') drawTrend();
 }
 function setLoad(on, quiet) {
   if (on && S.latched) { serial('# ' + T('위험 래치 상태 - 리셋 후 부하 ON 가능')); return; }
@@ -1095,99 +1097,86 @@ function drawTft3D() {
   if (c2) drawScreen(c2.getContext('2d'));
 }
 
-/* ================= 화면(패널) ================= */
-const panel = document.getElementById('panel');
+/* ================= 흐름: 14단계 (조립 → 점검 → 코드 → 운전) ================= */
+const FLOW = [
+  { id: 'parts', kind: 'parts', step: 0, short: '부품', title: '부품 준비하기', kicker: '준비' },
+  { id: 'rails', kind: 'build', step: 1, short: '전원' },
+  { id: 'vmon', kind: 'build', step: 2, short: '5V 감시' },
+  { id: 'load', kind: 'build', step: 3, short: '부하·션트' },
+  { id: 'relay', kind: 'build', step: 4, short: '릴레이' },
+  { id: 'buzzer', kind: 'build', step: 5, short: '부저' },
+  { id: 'temp', kind: 'build', step: 6, short: '온도센서' },
+  { id: 'rgb', kind: 'build', step: 7, short: 'RGB LED' },
+  { id: 'button', kind: 'build', step: 8, short: '버튼' },
+  { id: 'tft-power', kind: 'build', step: 9, short: 'TFT 전원' },
+  { id: 'tft-spi', kind: 'build', step: 10, short: 'TFT 신호' },
+  { id: 'check', kind: 'check', step: 11, short: '점검', title: '점검하기', kicker: '점검' },
+  { id: 'code', kind: 'code', step: 12, short: '코드', title: '코드 올리기', kicker: '코드' },
+  { id: 'run', kind: 'run', step: 12, short: '운전', title: 'BMS 운전해 보기', kicker: '시뮬레이션' },
+];
+let fi = 0;                       // 지금 보고 있는 흐름 단계
+const PREF = { sound: false, tags: true };
+try { Object.assign(PREF, JSON.parse(localStorage.getItem('bms-pref') || '{}')); } catch (e) {}
+const savePref = () => { try { localStorage.setItem('bms-pref', JSON.stringify(PREF)); } catch (e) {} };
 const $ = id => document.getElementById(id);
-let buildTab = 'steps', codeKey = 'cfg';
+const panelBody = $('pbody');
+const fTitle = f => T(f.title || STEPS[f.step].title);
+const fKicker = f => f.kind === 'build' ? T('조립') : T(f.kicker);
 function flash(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(flash.t); flash.t = setTimeout(() => el.classList.remove('on'), 2400); }
 
-function renderPanel() {
-  if (MODE === 'lab') panel.innerHTML = labHtml();
-  else if (MODE === 'build') panel.innerHTML = buildHtml();
-  else if (MODE === 'parts') panel.innerHTML = partsHtml();
-  else if (MODE === 'code') panel.innerHTML = codeHtml();
-  else panel.innerHTML = guideHtml();
-  panel.scrollTop = 0;
-  if (MODE === 'lab') { drawTft3D(); updateLive(); serial(''); serialLines.pop(); const el = $('serial'); if (el) { el.textContent = serialLines.join('\n'); el.scrollTop = el.scrollHeight; } }
+/* ---------- 단계 이동 ---------- */
+function go(i, opts = {}) {
+  fi = Math.max(0, Math.min(FLOW.length - 1, i));
+  const f = FLOW[fi];
+  MODE = f.kind === 'run' ? 'lab' : f.kind === 'code' ? 'code' : 'build';
+  current = f.step; showAll = false; focusTarget = null;
+  if (!opts.fromHash) { try { history.replaceState(null, '', '#' + f.id); } catch (e) {} }
+  document.body.dataset.kind = f.kind;
+  renderAll();
+  applyScene();
+  if (camera) setView(MODE === 'build' ? 'focus' : 'persp', !!opts.instant);
+}
+function renderAll() {
+  const f = FLOW[fi];
+  $('pnum').textContent = String(fi + 1).padStart(2, '0');
+  $('pkick').textContent = `${fKicker(f)} · ${F('stepOf', { n: FLOW.length, i: fi + 1 })}`;
+  $('ptitle').textContent = fTitle(f);
+  $('chipTitle').textContent = f.kind === 'run' ? T('가상 BMS 시험대') : T('작업대');
+  $('chipSub').textContent = f.kind === 'run' ? T('3D에서 버튼 · RL2 · RL3 · 온도센서를 눌러 보세요') : T('드래그 회전 · 휠 확대 · 부품에 마우스를 올려 보세요');
+  $('back').disabled = fi === 0;
+  const nx = $('next');
+  if (fi === FLOW.length - 1) { nx.innerHTML = `${esc(T('처음부터'))} <span aria-hidden="true">↺</span>`; }
+  else nx.innerHTML = `${esc(T('다음'))}: ${esc(T(FLOW[fi + 1].short))} <span aria-hidden="true">→</span>`;
+  document.querySelectorAll('[data-jump]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.jump === (f.kind === 'run' ? 'run' : 'build'))));
+  renderStrip(); renderPanel();
+  $('tags').setAttribute('aria-pressed', String(showTags));
+  updateLive(); drawTrend();
 }
 
-function labHtml() {
-  return `<div class="ph"><span class="eyebrow">${T('가상 실습실')}</span><h2>${T('BMS를 직접 조작해 보세요')}</h2>
-  <p class="desc">${T('3D에서 버튼, RL2·RL3 저항, 온도센서를 누르면 실제 보드처럼 반응합니다. 화면 값은 펌웨어와 같은 규칙으로 계산한 가상 데이터입니다.')}</p></div>
-  <canvas id="screen" width="480" height="320" class="screen" aria-label="${T('TFT 화면')}"></canvas>
-  <div class="group"><div class="glabel">${T('부하')}</div>
-    <div class="btns"><button class="btn primary" id="aLoad" type="button"></button>
-    <button class="btn" id="aRL2" type="button"></button><button class="btn" id="aRL3" type="button"></button>
-    <button class="btn" id="aReset" type="button">${T('TRIP 리셋')}</button></div></div>
-  <div class="group"><div class="glabel">${T('시험 상황')}</div>
-    <div class="btns"><button class="btn" id="aHand" type="button">${T('센서 손으로 쥐기')}</button>
-    <button class="btn" id="aHot" type="button">${T('뜨거운 물에 넣기')}</button>
-    <button class="btn" id="aUV" type="button">${T('저전압 (R2에 10kΩ 병렬)')}</button>
-    <button class="btn" id="aOV" type="button">${T('과전압 (3V3 → GPIO34)')}</button></div></div>
-  <div class="group"><div class="glabel">${T('시간')}</div>
-    <div class="btns"><button class="btn" id="aRun" type="button"></button><button class="btn" id="aSpeed" type="button"></button>
-    <span class="meta" id="aMah"></span></div></div>
-  <div class="serial"><div class="shead"><span><i class="dot" id="aDot"></i>${T('시리얼 모니터')} · 115200 baud</span><button class="btn sm" id="aClear" type="button">${T('지우기')}</button></div><pre id="serial" tabindex="0"></pre></div>
-  <p class="note">${T('경고 이상이면 실제 보드에서는 웹 대시보드(192.168.4.1)에 팝업이 뜨고 스마트폰이 진동합니다.')}</p>`;
-}
-function updateLive() {
-  if (MODE !== 'lab' || !$('aLoad')) return;
-  const set = (id, on, txt) => { const b = $(id); b.setAttribute('aria-pressed', String(!!on)); if (txt) b.textContent = txt; };
-  $('aLoad').textContent = S.loadOn ? T('부하 끄기') : T('부하 켜기');
-  $('aLoad').disabled = S.latched;
-  set('aRL2', S.rl2, S.rl2 ? T('RL2 빼기') : T('RL2 220Ω 꽂기'));
-  set('aRL3', S.rl3, S.rl3 ? T('RL3 빼기') : T('RL3 220Ω 꽂기'));
-  $('aReset').disabled = !S.latched;
-  set('aHand', S.hand); set('aHot', S.hot); set('aUV', S.uv); set('aOV', S.ov);
-  $('aRun').textContent = S.running ? T('멈추기') : T('다시 시작');
-  $('aSpeed').textContent = F('speed', { x: S.speed });
-  $('aDot').classList.toggle('on', S.running);
-  $('aMah').textContent = F('mah', { v: S.mah.toFixed(3) });
+/* ---------- 아래 단계 띠 ---------- */
+const thumbs = {};
+function renderStrip() {
+  const s = $('strip');
+  s.innerHTML = FLOW.map((f, i) => `<button type="button" class="scard${i === fi ? ' on' : ''}${i < fi ? ' done' : ''}" data-fi="${i}" aria-current="${i === fi ? 'step' : 'false'}" aria-label="${esc(F('stepAria', { i: i + 1, t: fTitle(f) }))}">
+    <span class="thumb">${thumbs[f.id] ? `<img src="${thumbs[f.id]}" alt="">` : ''}</span>
+    <span class="sbadge">${String(i + 1).padStart(2, '0')}</span><span class="sname">${esc(T(f.short))}</span></button>`).join('');
+  const on = s.querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
-function buildHtml() {
-  const nav = STEPS.map((st, i) => `<button type="button" data-step="${i}" class="${i === current ? 'on' : i < current ? 'done' : ''}" title="${esc(T(st.title))}" aria-label="${esc(F('stepAria', { i, t: T(st.title) }))}">${i}</button>`).join('');
-  const tabs = `<div class="subtabs" role="tablist"><button role="tab" type="button" data-btab="steps" aria-selected="${buildTab === 'steps'}">${T('순서대로 연결')}</button><button role="tab" type="button" data-btab="pins" aria-selected="${buildTab === 'pins'}">${T('ESP32 핀 표')}</button></div>`;
-  if (buildTab === 'pins') return tabs + pinsHtml();
-  const st = STEPS[current];
-  let html = tabs + `<nav class="stepnav" aria-label="${T('단계 선택')}">${nav}</nav>`;
-  html += `<div class="ph"><span class="eyebrow">${esc(T(st.kicker))} · ${current}/${STEPS.length - 1}</span><h2>${esc(T(st.title))}</h2><p class="desc">${esc(T(st.desc))}</p></div>`;
+/* ---------- 오른쪽 패널 ---------- */
+const chips = list => list.map(s => `<span class="hole mono">${esc(shortSpec(s))}</span>`).join('<span class="arrow" aria-hidden="true">→</span>');
+function shortSpec(s) { const p = parse(s); if (p.kind === 'hole') return `${p.board}-${p.col}${p.row}`; return shortTag(s); }
+function partRows(st) {
   const parts = st.items.filter(it => !['wire', 'relay', 'tft', 'probe', 'arrow'].includes(it.t));
+  if (!parts.length) return '';
+  return `<h3>${T('꽂을 부품')}</h3><ul class="rows">${parts.map(it => `<li class="${it.ghost ? 'ghost' : ''}"><div class="rl"><b>${esc(partName(it))}</b>${it.role ? `<span>${esc(T(it.role))}</span>` : ''}${it.ghost ? `<span class="tagx">${T('실험 때')}</span>` : ''}</div><div class="rc">${chips(endpointsOf(it))}</div></li>`).join('')}</ul>`;
+}
+function wireRows(st) {
   const wires = st.items.filter(it => it.t === 'wire');
-  const probes = st.items.filter(it => it.t === 'probe');
-  if (parts.length) {
-    html += `<table><thead><tr><th>${T('부품')}</th><th>${T('꽂는 위치')}</th></tr></thead><tbody>`;
-    parts.forEach(it => { html += `<tr${it.ghost ? ' class="ghost"' : ''}><td>${esc(partName(it))}${it.ghost ? ` <span class="kind">${T('실험 때')}</span>` : ''}</td><td class="mono">${endpointsOf(it).map(s => esc(nice(s))).join('<br>')}</td></tr>`; });
-    html += '</tbody></table>';
-  }
-  if (probes.length) {
-    html += `<table><thead><tr><th>${T('순서')}</th><th>${T('대는 곳')}</th><th>${T('정상 값')}</th></tr></thead><tbody>`;
-    probes.forEach(it => { html += `<tr><td class="mono">${esc(it.n)}</td><td>${esc(T(it.label))}<br><span class="kind">${esc(nice(it.at))}</span></td><td>${esc(T(it.expect))}</td></tr>`; });
-    html += '</tbody></table>';
-  }
-  if (wires.length) {
-    html += `<table><thead><tr><th>${T('점퍼')}</th><th>${T('한쪽 끝')}</th><th>${T('다른 끝')}</th></tr></thead><tbody>`;
-    wires.forEach(it => { html += `<tr><td><span class="sw" style="background:${COLORS[it.net]}"></span>${esc(COLOR_NAME[it.net])}<br><span class="kind">${wireKind(it)}</span></td><td>${esc(nice(it.from))}</td><td>${esc(nice(it.to))}</td></tr>`; });
-    html += '</tbody></table>';
-  }
-  if (current === 0) {
-    let fm = 0, mm = 0; STEPS.forEach(s => s.items.forEach(it => { if (it.t === 'wire') (wireKind(it) === 'F-M' ? fm++ : mm++); }));
-    html += `<div class="box">${esc(F('prep', { mm, fm }))}</div>`;
-    html += '<div class="legend">' + Object.keys(COLORS).map(k => `<span><span class="sw" style="background:${COLORS[k]}"></span>${esc(COLOR_NAME[k])} = ${esc(NET_NAME[k])}</span>`).join('') + '</div>';
-  }
-  if (st.tips?.length) html += '<ul class="tips">' + st.tips.map((t, i) => `<li${st.warn?.includes(i) ? ' class="warn"' : ''}>${esc(T(t))}</li>`).join('') + '</ul>';
-  html += `<div class="pager"><button class="btn" type="button" data-go="-1" ${current === 0 ? 'disabled' : ''}>${T('이전 단계')}</button><button class="btn primary" type="button" data-go="1" ${current === STEPS.length - 1 ? 'disabled' : ''}>${T('다음 단계')}</button></div>`;
-  return html;
+  if (!wires.length) return '';
+  return `<h3>${T('점퍼선')}</h3><ul class="rows">${wires.map(it => `<li><div class="rl"><b><span class="sw" style="background:${COLORS[it.net]}"></span>${esc(COLOR_NAME[it.net])}</b><span>${esc(NET_NAME[it.net])} · ${wireKind(it)}</span></div><div class="rc">${chips([it.from, it.to])}</div></li>`).join('')}</ul>`;
 }
-function pinsHtml() {
-  const rows = [];
-  STEPS.forEach((st, si) => st.items.forEach(it => { if (it.t !== 'wire') return; [[it.from, it.to], [it.to, it.from]].forEach(([a, b]) => { const p = parse(a); if (p.kind === 'hole' && p.esp) rows.push({ pin: p.esp, side: p.board, row: p.row, hole: `${p.board}-${p.col}${p.row}`, to: nice(b), step: si }); }); }));
-  rows.sort((a, b) => (a.side === b.side ? b.row - a.row : (a.side === 'L' ? -1 : 1)));
-  let html = `<div class="ph"><h2>${T('ESP32 핀 표')}</h2><p class="desc">${T('사용하는 핀과 연결 구멍입니다. 줄을 누르면 그 단계로 이동합니다.')}</p></div>`;
-  html += `<table><thead><tr><th>${T('ESP32 핀')}</th><th>${T('구멍')}</th><th>${T('연결 대상')}</th></tr></thead><tbody>`;
-  rows.forEach(r => { html += `<tr class="click" data-step="${r.step}" tabindex="0"><td class="mono">${esc(r.pin)}<br><span class="kind">${esc(F(r.side === 'L' ? 'pinRowL' : 'pinRowR', { r: r.row }))}</span></td><td class="mono">${r.hole}</td><td>${esc(r.to)}<br><span class="kind">${esc(F('stepN', { i: r.step }))}</span></td></tr>`; });
-  return html + `</tbody></table><div class="box">${T('위쪽 핀 줄의 안테나 쪽 끝(19행) 핀은 쓰지 않습니다. GND는 아래쪽 줄 6행, 위쪽 줄 13행 핀을 씁니다.')}</div>`;
-}
+function tipList(st, cls = '') { return st.tips?.length ? `<ul class="tips ${cls}">${st.tips.map((t, i) => `<li${st.warn?.includes(i) ? ' class="warn"' : ''}>${esc(T(t))}</li>`).join('')}</ul>` : ''; }
 
 const PARTS = [
   { key: 'esp', name: 'ESP32 DevKitC V4', q: 1, d: 'WROOM-32E. 측정·판정·제어, Wi-Fi 웹 서버' },
@@ -1203,27 +1192,61 @@ const PARTS = [
   { key: 'RS1,RS2,RL2,RL3', name: '저항 220Ω', q: 4, d: 'RS1·RS2 션트(병렬) + RL2·RL3 과전류 실험용 (빨·빨·갈)', b: [2, 2, 1] },
   { key: 'C1,C2', name: '세라믹 콘덴서 100nF (104)', q: 2, d: 'C1·C2 ADC 입력 잡음 필터' },
 ];
-function partObjs(key) {
-  if (key === 'boards') return boards;
-  return key.split(',').map(k => LAB.parts[k] || findRes(k)).filter(Boolean);
-}
+function partObjs(key) { if (key === 'boards') return boards; return key.split(',').map(k => LAB.parts[k] || findRes(k)).filter(Boolean); }
 function findRes(name) { let f = null; stepGroups.forEach(objs => objs.forEach(o => { if (!f && o.userData.resName === name) f = o; })); return f; }
-function partsHtml() {
-  const BC = { 0: '#111', 1: '#7a4a1e', 2: '#d02a2a', 3: '#ef7d16' };
-  return `<div class="ph"><span class="eyebrow">${T('@부품')}</span><h2>${T('키트 부품 12종')}</h2><p class="desc">${T('부품을 누르면 3D에서 그 위치로 이동합니다.')}</p></div>
-  <div class="plist">${PARTS.map((p, i) => `<button type="button" class="pcard${focusTarget && focusTarget.key === p.key ? ' on' : ''}" data-part="${i}">
-    <span class="pn">${esc(T(p.name))}</span><span class="pq mono">×${p.q}</span>
-    ${p.b ? `<span class="bands" aria-hidden="true"><span class="rb">${p.b.map(c => `<i style="background:${BC[c]}"></i>`).join('')}<i style="background:#c9a43a"></i></span></span>` : ''}
-    <span class="pd">${esc(T(p.d))}</span></button>`).join('')}</div>`;
+const BC = { 0: '#1b1b1b', 1: '#7a4a1e', 2: '#d02a2a', 3: '#ef7d16' };
+
+function renderPanel() {
+  const f = FLOW[fi], st = STEPS[f.step];
+  let h = '';
+  if (f.kind === 'parts') {
+    h += `<p class="lead">${esc(T('실습 키트 부품과 USB 5V 하나로 만듭니다. 배터리는 쓰지 않고, 5V 전원 자체를 감시하는 BMS예요.'))}</p>`;
+    h += `<p class="desc">${esc(T(st.desc))}</p>`;
+    h += `<h3>${T('키트 부품 12종')} <small>${T('누르면 3D에서 위치를 보여 줘요')}</small></h3><div class="plist">${PARTS.map((p, i) => `<button type="button" class="pcard${focusTarget && focusTarget.key === p.key ? ' on' : ''}" data-part="${i}"><span class="pn">${esc(T(p.name))}</span><span class="pq mono">×${p.q}</span>${p.b ? `<span class="bands" aria-hidden="true"><span class="rb">${p.b.map(c => `<i style="background:${BC[c]}"></i>`).join('')}<i style="background:#c9a43a"></i></span></span>` : ''}<span class="pd">${esc(T(p.d))}</span></button>`).join('')}</div>`;
+    let fm = 0, mm = 0; STEPS.forEach(s => s.items.forEach(it => { if (it.t === 'wire') (wireKind(it) === 'F-M' ? fm++ : mm++); }));
+    h += `<div class="note">${esc(F('prep', { mm, fm }))}</div>`;
+    h += `<h3>${T('브레드보드 읽는 법')}</h3>` + tipList(st);
+    h += `<h3>${T('점퍼선 색')}</h3><div class="legend">${Object.keys(COLORS).map(k => `<span><span class="sw" style="background:${COLORS[k]}"></span>${esc(COLOR_NAME[k])} = ${esc(NET_NAME[k])}</span>`).join('')}</div>`;
+  } else if (f.kind === 'build') {
+    h += `<p class="desc">${esc(T(st.desc))}</p>` + partRows(st) + wireRows(st);
+    if (st.tips?.length) h += `<h3>${T('확인할 점')}</h3>` + tipList(st);
+  } else if (f.kind === 'check') {
+    const probes = st.items.filter(it => it.t === 'probe');
+    h += `<p class="desc">${esc(T(st.desc))}</p><h3>${T('측정 위치')}</h3><ul class="rows">${probes.map(it => `<li><div class="rl"><b><span class="pnum mono">${esc(it.n)}</span>${esc(T(it.label))}</b><span>${esc(nice(it.at))}</span></div><div class="rc"><span class="val">${esc(T(it.expect))}</span></div></li>`).join('')}</ul>`;
+    h += tipList(st);
+    const fin = STEPS[12];
+    h += `<h3>${T('USB를 꽂기 전 체크리스트')}</h3><ul class="checks">${fin.tips.map((t, i) => `<li><label><input type="checkbox" id="ck${i}"> <span>${esc(T(t))}</span></label></li>`).join('')}</ul>`;
+    h += pinsHtml();
+    h += troubleHtml();
+  } else if (f.kind === 'code') {
+    h += codeHtml();
+  } else {
+    h += runHtml();
+  }
+  panelBody.innerHTML = h;
+  panelBody.scrollTop = 0;
+  if (f.kind === 'run') { const el = $('serial'); if (el) { el.textContent = serialLines.join('\n'); el.scrollTop = el.scrollHeight; } }
+}
+function pinsHtml() {
+  const rows = [];
+  STEPS.forEach((st, si) => st.items.forEach(it => { if (it.t !== 'wire') return; [[it.from, it.to], [it.to, it.from]].forEach(([a, b]) => { const p = parse(a); if (p.kind === 'hole' && p.esp) rows.push({ pin: p.esp, side: p.board, row: p.row, to: nice(b), step: si }); }); }));
+  rows.sort((a, b) => (a.side === b.side ? b.row - a.row : (a.side === 'L' ? -1 : 1)));
+  return `<details class="more"><summary>${T('ESP32 핀 표')}</summary><table><thead><tr><th>${T('ESP32 핀')}</th><th>${T('연결 대상')}</th></tr></thead><tbody>${rows.map(r => `<tr><td class="mono">${esc(r.pin)}<br><span class="kind">${esc(F(r.side === 'L' ? 'pinRowL' : 'pinRowR', { r: r.row }))}</span></td><td>${esc(r.to)}<br><span class="kind">${esc(F('stepN', { i: FLOW.findIndex(x => x.step === r.step) + 1 }))}</span></td></tr>`).join('')}</tbody></table></details>`;
+}
+function troubleHtml() {
+  return `<details class="more"><summary>${T('문제 해결')}</summary><table><thead><tr><th>${T('증상')}</th><th>${T('원인과 해결')}</th></tr></thead><tbody>${[['TFT가 흰 화면만 표시', '긴 점퍼선에 SPI 40MHz는 빠름 → 10MHz로 낮춤'], ['LOAD OFF인데 전류가 조금 보임', 'ESP32 ADC는 0V에서도 약 0.14V를 읽음 → 릴레이가 꺼져 있을 때 0점 학습'],
+    ['VBUS가 0V 근처 → 저전압 TRIP', '브레드보드 접촉 불량 → LED 시험과 3V3 점퍼 시험으로 범위를 좁힘'], ['VBUS 6.2V, 전류 수백 mA', '설계와 다른 저항 값 → 10kΩ 분배기, 220Ω×2 병렬 션트로 맞춤'],
+    ['켜자마자 과전류 TRIP', '실험용 RL2·RL3까지 꽂음 → 평소엔 RL1만'], ['OFF에서 전류, ON에서 0', '부하 선이 릴레이 NC 단자 → NO로 옮김'], ['정상인데 RGB가 빨강', 'RGB 선이 한 칸씩 밀림 → R·G·B 핀 순서 확인']]
+    .map(([a, b]) => `<tr><td>${esc(T(a))}</td><td>${esc(T(b))}</td></tr>`).join('')}</tbody></table></details>`;
 }
 
+let codeKey = 'cfg';
 function codeHtml() {
-  const tabs = Object.keys(CODE).map(k => `<button role="tab" type="button" data-code="${k}" aria-selected="${k === codeKey}">${esc(T(CODE[k].tab))}</button>`).join('');
-  const lang = window.I18N.lang;
-  const src = CODE[codeKey].src[lang] || CODE[codeKey].src.en || CODE[codeKey].src.ko;
-  return `<div class="ph"><span class="eyebrow">${T('코드')}</span><h2>${T('펌웨어 핵심 코드')}</h2><p class="desc">${T('ESP32_BMS_TFT v3의 실제 코드 일부입니다. Arduino IDE, 라이브러리 OneWire · LovyanGFX.')}</p></div>
-  <div class="code"><div class="subtabs dark" role="tablist">${tabs}</div><pre tabindex="0">${hl(src)}</pre>
-  <div class="cfoot"><span class="mono">${esc(CODE[codeKey].file)}</span><button class="btn sm" id="copyCode" type="button">${T('코드 복사')}</button></div></div>`;
+  const lang = window.I18N.lang, src = CODE[codeKey].src[lang] || CODE[codeKey].src.en || CODE[codeKey].src.ko;
+  return `<p class="desc">${esc(T('ESP32_BMS_TFT v3 펌웨어를 Arduino IDE로 올립니다. 아래는 핵심 코드 일부예요.'))}</p>
+  <ol class="nums"><li>${esc(T('Arduino IDE → 보드 매니저에서 esp32 (Espressif) 설치, 보드는 ESP32 Dev Module'))}</li><li>${esc(T('라이브러리 매니저에서 OneWire, LovyanGFX 설치'))}</li><li>${esc(T('압축을 푼 폴더에서 ESP32_BMS_TFT.ino를 열고 업로드'))}</li><li>${esc(T('부팅 화면에 FW v3가 보이면 성공'))}</li></ol>
+  <div class="term code"><div class="ttabs" role="tablist">${Object.keys(CODE).map(k => `<button role="tab" type="button" data-code="${k}" aria-selected="${k === codeKey}">${esc(T(CODE[k].tab))}</button>`).join('')}</div><pre tabindex="0">${hl(src)}</pre>
+  <div class="tfoot"><span class="mono">${esc(CODE[codeKey].file)}</span><button class="mini" id="copyCode" type="button">${T('코드 복사')}</button></div></div>`;
 }
 function hl(src) {
   return src.split('\n').map(line => {
@@ -1234,97 +1257,179 @@ function hl(src) {
   }).join('\n');
 }
 
-function guideHtml() {
+function sw(id, label, on, dot) { return `<div class="swrow"><span>${dot ? `<i class="ldot" style="background:${dot}"></i>` : ''}${esc(label)}</span><button type="button" class="switch" role="switch" id="${id}" aria-checked="${!!on}" aria-label="${esc(label)}"><i></i></button></div>`; }
+function runHtml() {
   const lv = (n, t) => `<span class="lv lv${n}">${t}</span>`;
-  return `<div class="ph"><span class="eyebrow">${T('참고')}</span><h2>${T('조작법과 기준')}</h2></div>
-  <h3>${T('3D 조작')}</h3>
-  <table><tbody>
-    <tr><td>${T('회전')}</td><td>${T('왼쪽 드래그')}</td></tr><tr><td>${T('확대·축소')}</td><td>${T('마우스 휠, 두 손가락 벌리기')}</td></tr>
-    <tr><td>${T('화면 이동')}</td><td>${T('오른쪽 드래그')}</td></tr><tr><td>${T('부품 조작')}</td><td>${T('실습실 모드에서 버튼·RL2·RL3·온도센서 클릭')}</td></tr>
-    <tr><td>${T('단계 이동')}</td><td>${T('조립 모드에서 ← → 키')}</td></tr></tbody></table>
-  <h3>${T('보드의 버튼 (GPIO13)')}</h3>
-  <table><tbody><tr><td>${T('짧게')}</td><td>${T('부하 ON/OFF')}</td></tr><tr><td>${T('짧게 (TRIP 중)')}</td><td>${T('리셋. 위험 조건이 남아 있으면 거부')}</td></tr><tr><td>${T('길게 1.5초')}</td><td>${T('시리얼 플로터 모드 전환')}</td></tr></tbody></table>
-  <h3>${T('4단계 판정 기준')}</h3>
-  <table class="num"><thead><tr><th>${T('항목')}</th><th>${lv(1, T('주의'))}</th><th>${lv(2, T('경고'))}</th><th>${lv(3, T('위험'))}</th></tr></thead><tbody>
-    <tr><td>${T('과전압 (V)')}</td><td>≥ 5.25</td><td>≥ 5.40</td><td>≥ 5.60</td></tr>
-    <tr><td>${T('저전압 (V)')}</td><td>≤ 4.40</td><td>≤ 4.20</td><td>≤ 4.00</td></tr>
-    <tr><td>${T('과전류 (mA)')}</td><td>≥ 15.0</td><td>≥ 18.0</td><td>≥ 23.5</td></tr>
-    <tr><td>${T('과열 (°C)')}</td><td>≥ 32</td><td>≥ 38</td><td>≥ 45</td></tr>
-    <tr><td>${T('온도 상승률 (°C/분)')}</td><td>≥ 1</td><td>≥ 3</td><td>≥ 6</td></tr>
-    <tr><td>${T('위험도 지수')}</td><td>≥ 30</td><td>≥ 50</td><td>≥ 70</td></tr></tbody></table>
-  <p class="note">${T('위험 단계가 나오면 릴레이를 끄고 TRIP(래치)을 겁니다. 열폭주 예측: 지금 온도 상승률로 45°C까지 5분 안에 도달하면 경고.')}</p>
-  <h3>${T('문제 해결')}</h3>
-  <table><thead><tr><th>${T('증상')}</th><th>${T('원인과 해결')}</th></tr></thead><tbody>
-    ${[['TFT가 흰 화면만 표시', '긴 점퍼선에 SPI 40MHz는 빠름 → 10MHz로 낮춤'], ['LOAD OFF인데 전류가 조금 보임', 'ESP32 ADC는 0V에서도 약 0.14V를 읽음 → 릴레이가 꺼져 있을 때 0점 학습'],
-       ['VBUS가 0V 근처 → 저전압 TRIP', '브레드보드 접촉 불량 → LED 시험과 3V3 점퍼 시험으로 범위를 좁힘'], ['VBUS 6.2V, 전류 수백 mA', '설계와 다른 저항 값 → 10kΩ 분배기, 220Ω×2 병렬 션트로 맞춤'],
-       ['켜자마자 과전류 TRIP', '실험용 RL2·RL3까지 꽂음 → 평소엔 RL1만'], ['OFF에서 전류, ON에서 0', '부하 선이 릴레이 NC 단자 → NO로 옮김'],
-       ['정상인데 RGB가 빨강', 'RGB 선이 한 칸씩 밀림 → R·G·B 핀 순서 확인']].map(([a, b]) => `<tr><td>${esc(T(a))}</td><td>${esc(T(b))}</td></tr>`).join('')}
-  </tbody></table>
-`;
+  return `<p class="desc">${esc(T('시뮬레이션 BMS는 실제 펌웨어와 같은 규칙으로 판정합니다. 부하를 켜고, 저항을 더 꽂고, 센서를 데워 보며 경고와 차단을 확인해 보세요.'))}</p>
+  <h3>${T('부하')}</h3>
+  <div class="loadbox"><button type="button" class="power" id="aLoad" aria-pressed="${S.loadOn}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8" /><path d="M6.4 6.6a8 8 0 1 0 11.2 0" /></svg></button>
+    <div class="loadtxt"><b id="aLoadTxt"></b><span id="aLoadSub"></span></div>
+    <button type="button" class="ybtn sm" id="aReset">${T('TRIP 리셋')}</button></div>
+  ${sw('aRL2', T('RL2 220Ω 꽂기'), S.rl2, '#d02a2a')}${sw('aRL3', T('RL3 220Ω 꽂기'), S.rl3, '#d02a2a')}
+  <h3>${T('시험 상황')}</h3>
+  <div class="seg" role="radiogroup" aria-label="${esc(T('온도'))}"><button type="button" role="radio" data-heat="none">${T('평상시')}</button><button type="button" role="radio" data-heat="hand">${T('손으로 쥐기')}</button><button type="button" role="radio" data-heat="hot">${T('뜨거운 물')}</button></div>
+  ${sw('aUV', T('저전압 (R2에 10kΩ 병렬)'), S.uv)}${sw('aOV', T('과전압 (3V3 → GPIO34)'), S.ov)}
+  <div class="slrow"><label for="aSpeed">${T('시간 배속')}</label><b class="mono" id="aSpeedV"></b></div>
+  <input type="range" id="aSpeed" min="1" max="20" step="1" value="${S.speed}">
+  <div class="keys"><span><kbd>Space</kbd> ${T('부하')}</span><span><kbd>2</kbd><kbd>3</kbd> RL2·RL3</span><span><kbd>H</kbd> ${T('손으로 쥐기')}</span><span><kbd>R</kbd> ${T('리셋')}</span><span><kbd>←</kbd><kbd>→</kbd> ${T('단계')}</span></div>
+  <div class="term"><div class="thead"><span>${T('시리얼 모니터')} · 115200</span><span><button class="mini" id="aRun" type="button"></button> <button class="mini" id="aClear" type="button">${T('지우기')}</button></span></div><pre id="serial" tabindex="0"></pre></div>
+  <details class="more"><summary>${T('4단계 판정 기준')}</summary><table class="num"><thead><tr><th>${T('항목')}</th><th>${lv(1, T('주의'))}</th><th>${lv(2, T('경고'))}</th><th>${lv(3, T('위험'))}</th></tr></thead><tbody>
+    <tr><td>${T('과전압 (V)')}</td><td>≥ 5.25</td><td>≥ 5.40</td><td>≥ 5.60</td></tr><tr><td>${T('저전압 (V)')}</td><td>≤ 4.40</td><td>≤ 4.20</td><td>≤ 4.00</td></tr>
+    <tr><td>${T('과전류 (mA)')}</td><td>≥ 15.0</td><td>≥ 18.0</td><td>≥ 23.5</td></tr><tr><td>${T('과열 (°C)')}</td><td>≥ 32</td><td>≥ 38</td><td>≥ 45</td></tr>
+    <tr><td>${T('온도 상승률 (°C/분)')}</td><td>≥ 1</td><td>≥ 3</td><td>≥ 6</td></tr><tr><td>${T('위험도 지수')}</td><td>≥ 30</td><td>≥ 50</td><td>≥ 70</td></tr></tbody></table>
+    <p class="note">${T('위험 단계가 나오면 릴레이를 끄고 TRIP(래치)을 겁니다. 열폭주 예측: 지금 온도 상승률로 45°C까지 5분 안에 도달하면 경고.')}</p></details>`;
 }
 
-/* ---------- 모드 전환 ---------- */
-const MODES = ['lab', 'build', 'parts', 'code', 'guide'];
-function setMode(m, fromHash) {
-  if (!MODES.includes(m)) m = 'lab';
-  MODE = m;
-  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-current', b.dataset.mode === m ? 'page' : 'false'));
-  if (!fromHash) { try { history.replaceState(null, '', '#' + m); } catch (e) {} }
-  renderPanel(); applyScene();
-  if (camera) setView(m === 'build' ? 'focus' : m === 'parts' && focusTarget ? 'focus' : 'persp');
+/* ---------- 실시간 표시 ---------- */
+const LV_KO = ['정상', '주의', '경고', '위험'];
+function updateLive() {
+  const lvTxt = S.latched && S.level < 3 ? 'TRIP' : T(LV_KO[S.level]);
+  const col = S.latched && S.level < 3 ? '#2563c9' : LV_HEX[S.level];
+  if ($('tV')) {
+    $('tV').textContent = S.V.toFixed(2); $('tI').textContent = S.I.toFixed(1); $('tT').textContent = S.T.toFixed(1); $('tR').textContent = Math.round(S.risk);
+    $('stLv').textContent = lvTxt; $('stLv').parentElement.style.setProperty('--c', col);
+  }
+  if ($('fcState')) {
+    const stage = S.latched ? 3 : S.level >= 1 ? 2 : S.loadOn ? 1 : 0;
+    document.querySelectorAll('#flowsvg [data-node]').forEach(n => n.classList.toggle('on', +n.dataset.node <= stage));
+    $('fcState').textContent = S.latched ? T('TRIP: 부하 차단됨') : S.level ? `${T(LV_KO[S.level])}: ${S.reason}` : S.loadOn ? T('정상: 부하에 전류가 흐르는 중') : T('정상: 부하 꺼짐');
+    $('fcSub').textContent = S.latched ? (S.level === 3 ? T('아직 위험 조건이 남아 있어요') : T('원인이 사라졌어요. 리셋하면 다시 켤 수 있어요')) : S.mins > 0 ? F('runaway', { m: S.mins.toFixed(1) }) : T('측정 → 필터 → 판정 → 보호를 1초마다 반복');
+    const b = $('fcBtn'); b.textContent = S.latched ? T('리셋') : S.loadOn ? T('부하 끄기') : T('부하 켜기'); b.classList.toggle('warnbtn', S.latched);
+  }
+  if (FLOW[fi].kind !== 'run' || !$('aLoad')) return;
+  $('aLoad').setAttribute('aria-pressed', String(S.loadOn)); $('aLoad').disabled = S.latched;
+  $('aLoad').setAttribute('aria-label', S.loadOn ? T('부하 끄기') : T('부하 켜기'));
+  $('aLoadTxt').textContent = S.latched ? 'TRIP' : S.loadOn ? 'LOAD ON' : 'LOAD OFF';
+  $('aLoadSub').textContent = S.latched ? T('위험 감지로 차단됨 · 리셋 필요') : S.loadOn ? F('loadNow', { i: S.I.toFixed(1) }) : T('버튼을 눌러 부하 켜기');
+  $('aReset').disabled = !S.latched;
+  [['aRL2', S.rl2], ['aRL3', S.rl3], ['aUV', S.uv], ['aOV', S.ov]].forEach(([id, v]) => $(id).setAttribute('aria-checked', String(!!v)));
+  const heat = S.hot ? 'hot' : S.hand ? 'hand' : 'none';
+  document.querySelectorAll('[data-heat]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.heat === heat)));
+  $('aSpeedV').textContent = `×${S.speed}`;
+  $('aRun').textContent = S.running ? T('멈추기') : T('다시 시작');
 }
-function go(i) { current = Math.max(0, Math.min(STEPS.length - 1, i)); renderPanel(); applyScene(); setView('focus'); }
+function drawTrend() {
+  const cv = $('trend'); if (!cv || FLOW[fi].kind !== 'run') return;
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  const X = i => 6 + i / 119 * (W - 12), off = 120 - S.hI.length;
+  g.strokeStyle = '#e1dccd'; g.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) { const y = 8 + k * (H - 16) / 4; g.beginPath(); g.moveTo(6, y); g.lineTo(W - 6, y); g.stroke(); }
+  const line = (data, lo, hi, col, limit) => {
+    const Y = v => H - 8 - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo) * (H - 16);
+    g.strokeStyle = col; g.globalAlpha = .45; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(6, Y(limit)); g.lineTo(W - 6, Y(limit)); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+    if (data.length < 2) return;
+    g.lineWidth = 2.5; g.beginPath(); data.forEach((v, i) => { i ? g.lineTo(X(i + off), Y(v)) : g.moveTo(X(i + off), Y(v)); }); g.stroke();
+    g.fillStyle = col; g.beginPath(); g.arc(X(119), Y(data[data.length - 1]), 3.5, 0, 7); g.fill();
+  };
+  line(S.hT, 20, 50, '#f6c047', 45);
+  line(S.hI, 0, 40, '#1e3a5c', 23.5);
+}
 
-panel.addEventListener('click', e => {
-  const t = e.target.closest('button, tr.click'); if (!t) return;
-  const id = t.id;
-  if (t.dataset.step !== undefined) { buildTab = 'steps'; go(+t.dataset.step); return; }
-  if (t.dataset.go) { go(current + +t.dataset.go); return; }
-  if (t.dataset.btab) { buildTab = t.dataset.btab; renderPanel(); return; }
-  if (t.dataset.code) { codeKey = t.dataset.code; renderPanel(); return; }
+/* ---------- 썸네일: 각 단계의 3D 모습을 작게 찍어 둠 ---------- */
+function makeThumbs() {
+  const W = 288, H = 176, rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 });
+  const cam = new THREE.PerspectiveCamera(36, W / H, 2, 1500);
+  const buf = new Uint8Array(W * H * 4), cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'), img = g.createImageData(W, H);
+  const save = { fi, MODE, current, showAll };
+  FLOW.forEach((f, i) => {
+    MODE = f.kind === 'run' ? 'lab' : f.kind === 'code' ? 'code' : 'build'; current = f.step; showAll = false;
+    applyScene(); scene.updateMatrixWorld(true);
+    const box = MODE === 'build' && STEPS[current].items.length && !STEPS[current].all ? stepBox() : allBox();
+    const target = box.getCenter(new THREE.Vector3()); target.y = 0;
+    const size = box.getSize(new THREE.Vector3()), dir = new THREE.Vector3(-.62, .78, 0).normalize();
+    const vfov = THREE.MathUtils.degToRad(cam.fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * cam.aspect);
+    const dist = Math.max(size.z / 2 * 1.04 / Math.tan(hfov / 2), (size.x * .8 + size.y * .6) / 2 * 1.05 / Math.tan(vfov / 2), 18) + size.x * .3;
+    cam.position.copy(target).addScaledVector(dir, dist); cam.lookAt(target);
+    renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf); renderer.setRenderTarget(null);
+    for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+    g.putImageData(img, 0, 0); thumbs[f.id] = cv.toDataURL('image/jpeg', .82);
+  });
+  rt.dispose();
+  ({ fi, MODE, current, showAll } = save); applyScene(); renderStrip();
+}
+
+/* ---------- 소리 (설정에서 켜면 부저를 스피커로) ---------- */
+let actx = null;
+function beep(freq, ms) {
+  if (!PREF.sound) return;
+  try { actx = actx || new AudioContext(); const o = actx.createOscillator(), v = actx.createGain(); o.type = 'square'; o.frequency.value = freq; v.gain.value = .04; o.connect(v).connect(actx.destination); o.start(); o.stop(actx.currentTime + ms / 1000); } catch (e) {}
+}
+const _tick = simTick;
+simTick = function () { _tick(); if (S.level === 3) beep(1800, 400); else if (S.level === 2) beep(1200, 120); };
+
+/* ---------- 조작 ---------- */
+function onViewChange() { $('vTop').setAttribute('aria-pressed', String(viewMode === 'top')); }
+function zoomBy(k) { const t = controls.target, p = camera.position; p.sub(t).multiplyScalar(k).add(t); controls.update(); }
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, [data-fi]'); if (!t) return;
+  if (t.dataset.fi !== undefined) { go(+t.dataset.fi); return; }
+  if (t.dataset.jump) { go(t.dataset.jump === 'run' ? FLOW.length - 1 : 0); return; }
   if (t.dataset.part !== undefined) {
     const p = PARTS[+t.dataset.part]; const objs = partObjs(p.key);
     focusTarget = objs; focusTarget.key = p.key;
     objs.forEach(o => { highlight(o, true); setTimeout(() => highlight(o, false), 1600); });
-    renderPanel(); setView('focus'); return;
+    renderPanel(); setView('part'); return;
   }
-  if (id === 'aLoad') pressButton();
-  else if (id === 'aRL2') doAction('rl2');
-  else if (id === 'aRL3') doAction('rl3');
-  else if (id === 'aReset') { FX.press = 1; tryReset(); }
-  else if (id === 'aHand') { S.hand = !S.hand; if (S.hand) S.hot = false; }
-  else if (id === 'aHot') { S.hot = !S.hot; if (S.hot) S.hand = false; }
-  else if (id === 'aUV') { S.uv = !S.uv; if (S.uv) S.ov = false; }
-  else if (id === 'aOV') { S.ov = !S.ov; if (S.ov) S.uv = false; }
-  else if (id === 'aRun') { S.running = !S.running; startSim(); }
-  else if (id === 'aSpeed') { S.speed = S.speed === 1 ? 5 : S.speed === 5 ? 20 : 1; startSim(); }
-  else if (id === 'aClear') { serialLines.length = 0; $('serial').textContent = ''; }
-  else if (id === 'copyCode') {
-    const lang = window.I18N.lang, src = CODE[codeKey].src[lang] || CODE[codeKey].src.en || CODE[codeKey].src.ko;
-    navigator.clipboard.writeText(src).then(() => flash(T('코드를 복사했어요')), () => flash(T('복사가 막혔어요. 코드를 직접 선택해 복사하세요.')));
-    return;
+  if (t.dataset.code) { codeKey = t.dataset.code; renderPanel(); return; }
+  if (t.dataset.heat) { S.hand = t.dataset.heat === 'hand'; S.hot = t.dataset.heat === 'hot'; updateLive(); return; }
+  switch (t.id) {
+    case 'back': go(fi - 1); break;
+    case 'next': go(fi === FLOW.length - 1 ? 0 : fi + 1); break;
+    case 'sPrev': $('strip').scrollBy({ left: -360, behavior: 'smooth' }); break;
+    case 'sNext': $('strip').scrollBy({ left: 360, behavior: 'smooth' }); break;
+    case 'zIn': zoomBy(.8); break;
+    case 'zOut': zoomBy(1.25); break;
+    case 'vTop': setView(viewMode === 'top' ? (MODE === 'build' ? 'focus' : 'persp') : 'top'); break;
+    case 'vHome': setView(MODE === 'build' ? 'focus' : 'persp'); break;
+    case 'tags': showTags = !showTags; PREF.tags = showTags; savePref(); t.setAttribute('aria-pressed', String(showTags)); applyScene(); break;
+    case 'aLoad': pressButton(); break;
+    case 'fcBtn': pressButton(); break;
+    case 'aReset': FX.press = 1; tryReset(); break;
+    case 'aRL2': doAction('rl2'); break;
+    case 'aRL3': doAction('rl3'); break;
+    case 'aUV': S.uv = !S.uv; if (S.uv) S.ov = false; break;
+    case 'aOV': S.ov = !S.ov; if (S.ov) S.uv = false; break;
+    case 'aRun': S.running = !S.running; startSim(); break;
+    case 'aClear': serialLines.length = 0; $('serial').textContent = ''; break;
+    case 'copyCode': {
+      const lang = window.I18N.lang, src = CODE[codeKey].src[lang] || CODE[codeKey].src.en || CODE[codeKey].src.ko;
+      navigator.clipboard.writeText(src).then(() => flash(T('코드를 복사했어요')), () => flash(T('복사가 막혔어요. 코드를 직접 선택해 복사하세요.'))); break;
+    }
+    case 'gear': $('settings').hidden = false; $('setSound').setAttribute('aria-checked', String(PREF.sound)); $('setTags').setAttribute('aria-checked', String(showTags)); $('setClose').focus(); break;
+    case 'setClose': $('settings').hidden = true; $('gear').focus(); break;
+    case 'setSound': PREF.sound = !PREF.sound; savePref(); t.setAttribute('aria-checked', String(PREF.sound)); if (PREF.sound) beep(1200, 120); break;
+    case 'setTags': showTags = !showTags; PREF.tags = showTags; savePref(); t.setAttribute('aria-checked', String(showTags)); $('tags').setAttribute('aria-pressed', String(showTags)); applyScene(); break;
+    case 'setReset': Object.assign(S, { loadOn: true, rl2: false, rl3: false, hand: false, hot: false, uv: false, ov: false, latched: false, level: 0, T: 24.8, histV: [], histT: [], hI: [], hT: [], vEma: NaN, tEma: NaN, mah: 0 }); serialLines.length = 0; serial('# reset'); applyScene(); renderPanel(); updateLive(); flash(T('시뮬레이션을 처음 상태로 되돌렸어요')); break;
+    default: return;
   }
   updateLive();
 });
-panel.addEventListener('keydown', e => { const t = e.target.closest('tr.click'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); t.click(); } });
-document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
-document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
-$('vTags').addEventListener('click', e => { showTags = !showTags; e.currentTarget.setAttribute('aria-pressed', String(showTags)); applyScene(); });
-$('vAll').addEventListener('click', e => { showAll = !showAll; e.currentTarget.setAttribute('aria-pressed', String(showAll)); applyScene(); });
-window.addEventListener('hashchange', () => { const m = location.hash.slice(1); if (MODES.includes(m) && m !== MODE) setMode(m, true); });
+document.addEventListener('input', e => { if (e.target.id === 'aSpeed') { S.speed = +e.target.value; startSim(); updateLive(); } });
+$('settings').addEventListener('click', e => { if (e.target.id === 'settings') { $('settings').hidden = true; } });
 document.addEventListener('keydown', e => {
-  if (e.target.closest('input,textarea,select')) return;
-  if (MODE === 'build' && e.key === 'ArrowRight') go(current + 1);
-  if (MODE === 'build' && e.key === 'ArrowLeft') go(current - 1);
+  if (e.key === 'Escape' && !$('settings').hidden) { $('settings').hidden = true; return; }
+  if (e.target.closest('input,textarea,select,[role=tab]') || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'ArrowRight') { go(fi + 1); e.preventDefault(); }
+  else if (e.key === 'ArrowLeft') { go(fi - 1); e.preventDefault(); }
+  else if (FLOW[fi].kind === 'run') {
+    const k = e.key.toLowerCase();
+    if (k === ' ') { pressButton(); e.preventDefault(); } else if (k === '2') doAction('rl2'); else if (k === '3') doAction('rl3');
+    else if (k === 'h') { S.hand = !S.hand; if (S.hand) S.hot = false; } else if (k === 'r') { FX.press = 1; tryReset(); } else return;
+    updateLive();
+  }
 });
+window.addEventListener('hashchange', () => { const i = FLOW.findIndex(f => f.id === location.hash.slice(1)); if (i >= 0 && i !== fi) go(i, { fromHash: true }); });
 
 /* ---------- 언어 ---------- */
 function applyLang() {
   document.documentElement.lang = window.I18N.lang;
   document.querySelectorAll('[data-t]').forEach(el => { el.textContent = T(el.dataset.t); });
-  document.querySelectorAll('[data-ta]').forEach(el => { el.setAttribute('aria-label', T(el.dataset.ta)); });
-  document.title = T('ESP32 BMS 가상 실습실');
-  retext(); renderPanel();
+  document.querySelectorAll('[data-ta]').forEach(el => { el.setAttribute('aria-label', T(el.dataset.ta)); el.title = T(el.dataset.ta); });
+  document.title = `ESP32 BMS Lab — ${T('USB 5V로 만드는 배터리 관리 시스템')}`;
+  $('langCode').textContent = window.I18N.lang.toUpperCase();
+  retext(); renderAll(); drawTft3D();
 }
 const langSel = $('lang');
 langSel.innerHTML = Object.entries(window.I18N.LANGS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
@@ -1332,13 +1437,17 @@ langSel.value = window.I18N.lang;
 langSel.addEventListener('change', () => { window.I18N.set(langSel.value); applyLang(); });
 
 /* ---------- 시작 ---------- */
-const h0 = location.hash.slice(1); if (MODES.includes(h0)) MODE = h0;
+showTags = PREF.tags !== false;
+const h0 = FLOW.findIndex(f => f.id === location.hash.slice(1));
+fi = h0 >= 0 ? h0 : FLOW.length - 1;            // 첫 화면: 운전해 보기
+for (let k = 0; k < 8; k++) simTick();
+go(fi, { fromHash: true });
 applyLang();
-for (let k = 0; k < 6; k++) simTick();   // 처음부터 기록과 그래프가 보이게 몇 초 미리 돌림
 try {
   THREE = await import('three');
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
   ({ CSS2DRenderer, CSS2DObject } = await import('three/addons/renderers/CSS2DRenderer.js'));
   ({ RoundedBoxGeometry } = await import('three/addons/geometries/RoundedBoxGeometry.js'));
-  init(); retext(); setMode(MODE, true); setView(MODE === 'build' ? 'focus' : 'persp', true); drawTft3D(); startSim();
-} catch (e) { console.error(e); $('err').style.display = 'grid'; startSim(); }
+  init(); retext(); applyScene(); setView(MODE === 'build' ? 'focus' : 'persp', true); drawTft3D(); startSim();
+  requestAnimationFrame(() => { try { makeThumbs(); } catch (e) { console.warn(e); } });
+} catch (e) { console.error(e); $('err').hidden = false; startSim(); }
