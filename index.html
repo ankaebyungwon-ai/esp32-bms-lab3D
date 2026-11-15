@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ESP32 BMS Lab</title>
-<meta name="description" content="Build an ESP32 battery management system on a breadboard, step by step in 3D, then run it in the built-in simulator. Korean, English, Japanese, Chinese.">
+<meta name="description" content="Build an ESP32 battery management system on a breadboard, step by step in 3D, then experiment with it in the built-in simulator. Korean, English, Japanese, Chinese.">
 <meta name="theme-color" content="#f6f3e8">
 <meta property="og:title" content="ESP32 BMS Lab">
-<meta property="og:description" content="ESP32 BMS를 3D로 단계별 조립하고, 내장 시뮬레이터로 운전해 보세요.">
+<meta property="og:description" content="ESP32 BMS를 3D로 단계별 조립하고, 내장 시뮬레이터로 실험해 보세요.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Roboto+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700;800&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
@@ -182,7 +182,7 @@ table.num td + td, table.num th + th { text-align: right; font-family: var(--f-m
 .kind { color: var(--faint); font-size: 11px; }
 .lv { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 5px; color: #fff; font-family: var(--f-ui); }
 .lv1 { background: var(--lv1); color: #1d2428; } .lv2 { background: var(--lv2); } .lv3 { background: var(--lv3); }
-/* 운전 조작 */
+/* 실험 조작 */
 .loadbox { display: flex; align-items: center; gap: 12px; background: var(--tile); border: 1px solid var(--tile-border); border-radius: var(--r-tile); padding: 10px 12px; }
 .power { width: 54px; height: 54px; border-radius: 50%; border: 0; flex: none; display: grid; place-items: center; background: linear-gradient(180deg, var(--navy-hi), var(--navy)); box-shadow: 0 3px 0 var(--navy-deep); }
 .power svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; }
@@ -262,7 +262,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; background: var(--tile); bord
     <span class="tlabel" data-t="보기"></span>
     <div class="segtop" role="group" data-ta="보기">
       <button type="button" data-jump="build" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg><span data-t="조립"></span></button>
-      <button type="button" data-jump="run" aria-pressed="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span data-t="운전"></span></button>
+      <button type="button" data-jump="run" aria-pressed="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span data-t="실험"></span></button>
     </div>
     <label class="pill" data-ta="언어"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span id="langCode">KO</span><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><select id="lang" data-ta="언어"></select></label>
     <button type="button" class="iconbtn" id="gear" data-ta="설정"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>

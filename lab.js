@@ -1097,7 +1097,7 @@ function drawTft3D() {
   if (c2) drawScreen(c2.getContext('2d'));
 }
 
-/* ================= 흐름: 14단계 (조립 → 점검 → 코드 → 운전) ================= */
+/* ================= 흐름: 14단계 (조립 → 점검 → 코드 → 실험) ================= */
 const FLOW = [
   { id: 'parts', kind: 'parts', step: 0, short: '부품', title: '부품 준비하기', kicker: '준비' },
   { id: 'rails', kind: 'build', step: 1, short: '전원' },
@@ -1112,7 +1112,7 @@ const FLOW = [
   { id: 'tft-spi', kind: 'build', step: 10, short: 'TFT 신호' },
   { id: 'check', kind: 'check', step: 11, short: '점검', title: '점검하기', kicker: '점검' },
   { id: 'code', kind: 'code', step: 12, short: '코드', title: '코드 올리기', kicker: '코드' },
-  { id: 'run', kind: 'run', step: 12, short: '운전', title: 'BMS 운전해 보기', kicker: '시뮬레이션' },
+  { id: 'run', kind: 'run', step: 12, short: '@실험', title: 'BMS 실험해 보기', kicker: '시뮬레이션' },
 ];
 let fi = 0;                       // 지금 보고 있는 흐름 단계
 const PREF = { sound: false, tags: true };
@@ -1439,7 +1439,7 @@ langSel.addEventListener('change', () => { window.I18N.set(langSel.value); apply
 /* ---------- 시작 ---------- */
 showTags = PREF.tags !== false;
 const h0 = FLOW.findIndex(f => f.id === location.hash.slice(1));
-fi = h0 >= 0 ? h0 : FLOW.length - 1;            // 첫 화면: 운전해 보기
+fi = h0 >= 0 ? h0 : FLOW.length - 1;            // 첫 화면: 실험해 보기
 for (let k = 0; k < 8; k++) simTick();
 go(fi, { fromHash: true });
 applyLang();
