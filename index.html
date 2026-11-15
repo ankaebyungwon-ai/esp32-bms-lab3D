@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP32 BMS Lab</title>
+<meta name="description" content="ESP32 BMS virtual lab: 3D circuit, simulated data, 4 languages">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 화면 전체가 3D 작업대. 위 막대 = 모드·언어, 오른쪽 패널 = 지금 모드의 도구 (휴대폰에선 아래) */
+:root {
+  --paper: #f4efe4;          /* 패널 바탕 */
+  --panel: #fffcf6;
+  --ink: #1d2428;
+  --soft: #5f6a6e;
+  --line: #dcd3c1;
+  --accent: #0f6b5c;         /* PCB 녹색 */
+  --accent-ink: #ffffff;
+  --mat: #41565f;            /* 정전기 방지 매트 */
+  --lv0: #1e9e55; --lv1: #e6b800; --lv2: #f07f12; --lv3: #d62f2f; --trip: #2563c9;
+  --font-body: "IBM Plex Sans KR", "Noto Sans JP", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #161b1d; --panel: #1e2427; --ink: #e7ecec; --soft: #9ba6aa; --line: #30393d; --accent: #3fb59d; --accent-ink: #0d1517; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --paper: #161b1d; --panel: #1e2427; --ink: #e7ecec; --soft: #9ba6aa; --line: #30393d; --accent: #3fb59d; --accent-ink: #0d1517; color-scheme: dark; }
+:lang(ja) { --font-body: "Noto Sans JP", "IBM Plex Sans KR", system-ui, sans-serif; }
+:lang(zh) { --font-body: "Noto Sans SC", "IBM Plex Sans KR", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--mat); color: var(--ink); font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; overflow: hidden; }
+button, select { font: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.app { height: 100%; display: grid; grid-template-columns: 1fr 420px; grid-template-rows: 54px 1fr; }
+/* 위 막대 */
+.top { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 14px; background: var(--paper); border-bottom: 1px solid var(--line); min-width: 0; }
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 700; white-space: nowrap; }
+.brand i { width: 22px; height: 22px; border-radius: 5px; background: var(--accent); display: grid; place-items: center; color: var(--accent-ink); font-style: normal; font-size: 11px; font-family: var(--font-mono); }
+.brand small { color: var(--soft); font-weight: 500; font-size: 12.5px; }
+.modes { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+.modes button { border: 0; background: none; color: var(--soft); padding: 7px 12px; border-radius: 7px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.modes button:hover { color: var(--ink); background: var(--panel); }
+.modes button[aria-current="page"] { color: var(--ink); background: var(--panel); box-shadow: inset 0 -2px 0 var(--accent); }
+.lang { display: flex; align-items: center; gap: 6px; color: var(--soft); font-size: 13px; }
+.lang select { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 7px; padding: 5px 8px; }
+
+/* 3D */
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+#view { position: absolute; inset: 0; }
+#view canvas { display: block; }
+#labels { position: absolute; inset: 0; pointer-events: none; }
+.tag { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.94); color: #1d2428; border: 1px solid rgba(0,0,0,.25); white-space: nowrap; transform: translateY(-12px); }
+.tag.moved::after { content: ''; position: absolute; left: 50%; top: 100%; width: 1.5px; height: var(--lead, 0px); background: rgba(29,36,40,.7); transform: translateX(-50%); }
+.tag.pin { background: #1d2428; color: #fff; border-color: #1d2428; }
+.tag.probe { background: #ffd166; color: #1d2428; border-color: #b8860b; font-family: var(--font-body); font-size: 12.5px; }
+.tip { position: absolute; display: none; pointer-events: none; z-index: 5; max-width: 330px; background: rgba(20,26,29,.95); color: #eef3f3; border-radius: 8px; padding: 8px 11px; font-size: 13px; line-height: 1.45; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+.tip b { display: block; font-size: 13.5px; margin-bottom: 2px; }
+.tip .sub { color: #9fb1b6; font-size: 12px; margin-top: 3px; }
+.tip .act { margin-top: 6px; color: #ffd166; font-weight: 600; font-size: 12.5px; }
+.tip .mono { color: #ffd166; }
+.viewbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; flex-wrap: wrap; z-index: 4; }
+.viewbar button { border: 1px solid rgba(255,255,255,.18); background: rgba(22,30,33,.78); color: #e8eeee; border-radius: 7px; padding: 5px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; backdrop-filter: blur(4px); }
+.viewbar button[aria-pressed="true"] { background: #fff; color: #1d2428; }
+.viewbar:not([data-mode="build"]) .b-only { display: none; }
+.hint { position: absolute; left: 12px; bottom: 10px; color: rgba(255,255,255,.75); font-size: 12px; z-index: 4; pointer-events: none; }
+.err { display: none; position: absolute; inset: 0; place-items: center; text-align: center; color: #fff; padding: 30px; }
+.toast { position: absolute; left: 50%; top: 14px; transform: translate(-50%, -8px); background: #1d2428; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s, transform .2s; z-index: 6; pointer-events: none; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* 패널 */
+.panel { background: var(--paper); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 28px; min-height: 0; }
+.ph { margin-bottom: 14px; }
+.eyebrow { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: .3px; }
+.ph h2 { margin: 2px 0 6px; font-size: 20px; line-height: 1.3; text-wrap: balance; }
+.desc { margin: 0; color: var(--soft); }
+h3 { font-size: 14.5px; margin: 18px 0 6px; }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 11px; font-size: 13px; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, var(--panel)); font-weight: 600; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.sm { padding: 3px 9px; font-size: 12px; }
+.screen { width: 100%; aspect-ratio: 3 / 2; display: block; border-radius: 8px; border: 6px solid #1f4fa8; background: #101418; }
+.group { margin-top: 14px; }
+.glabel { font-size: 12px; font-weight: 600; color: var(--soft); margin-bottom: 6px; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.meta { font-size: 12.5px; color: var(--soft); margin-left: 4px; }
+.serial { margin-top: 14px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.shead { display: flex; justify-content: space-between; align-items: center; padding: 6px 9px; background: var(--panel); font-size: 12.5px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--soft); margin-right: 6px; }
+.dot.on { background: var(--lv0); }
+.serial pre { margin: 0; height: 190px; overflow: auto; padding: 8px 10px; font: 11.5px/1.5 var(--font-mono); background: #12181b; color: #b9f5c8; }
+.note { font-size: 12.5px; color: var(--soft); margin-top: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--soft); font-weight: 600; }
+table.num td + td, table.num th + th { text-align: right; font-family: var(--font-mono); }
+tr.ghost { opacity: .55; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--panel); }
+td.mono { font-size: 12.5px; }
+.kind { color: var(--soft); font-size: 11.5px; }
+.sw { display: inline-block; width: 18px; height: 6px; border-radius: 3px; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0,0,0,.2); }
+.box { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font-size: 13px; }
+.legend { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; color: var(--soft); }
+.tips { margin: 14px 0 0; padding-left: 18px; }
+.tips li { margin: 5px 0; }
+.tips li.warn { color: var(--lv3); font-weight: 600; }
+.pager { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.pager .btn { padding: 9px; }
+.subtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: -4px 0 12px; overflow-x: auto; }
+.subtabs button { border: 0; background: none; padding: 8px 11px; color: var(--soft); font-weight: 600; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.subtabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.stepnav { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+.stepnav button { width: 32px; height: 30px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-family: var(--font-mono); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+.stepnav button.done { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+.stepnav button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.plist { display: grid; gap: 8px; }
+.pcard { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; text-align: left; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.pcard:hover, .pcard.on { border-color: var(--accent); }
+.pcard.on { box-shadow: inset 3px 0 0 var(--accent); }
+.pn { font-weight: 600; }
+.pq { color: var(--soft); font-size: 12.5px; }
+.pd { grid-column: 1 / -1; color: var(--soft); font-size: 12.5px; }
+.bands { grid-column: 1 / -1; display: flex; align-items: center; height: 14px; margin: 3px 0; }
+.bands::before, .bands::after { content: ""; width: 12px; height: 2px; background: #9aa0a3; }
+.rb { display: flex; gap: 4px; background: #d9c49a; border-radius: 6px; padding: 0 7px; height: 14px; }
+.rb i { width: 4px; height: 14px; display: block; }
+.code { border-radius: 10px; overflow: hidden; background: #12181b; }
+.subtabs.dark { margin: 0; border-color: #2a3438; padding: 0 6px; }
+.subtabs.dark button { color: #8fa0a6; }
+.subtabs.dark button[aria-selected="true"] { color: #fff; }
+.code pre { margin: 0; padding: 12px 14px; font: 11.8px/1.6 var(--font-mono); color: #dfe6e7; overflow: auto; max-height: calc(100vh - 330px); }
+.code .c { color: #7f9196; } .code .k { color: #7cc7ff; } .code .n { color: #ffcf7a; }
+.cfoot { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border-top: 1px solid #2a3438; color: #8fa0a6; font-size: 12px; }
+.cfoot .btn { background: transparent; color: #dfe6e7; border-color: #3a464b; }
+.lv { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 1px 7px; border-radius: 4px; color: #fff; font-family: var(--font-body); }
+.lv1 { background: var(--lv1); color: #1d2428; } .lv2 { background: var(--lv2); } .lv3 { background: var(--lv3); }
+.links { display: grid; gap: 4px; } .links a { color: var(--accent); }
+
+@media (max-width: 860px) {
+  body { overflow: auto; }
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto; height: auto; min-height: 100%; }
+  .top { flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
+  .modes { order: 3; flex-basis: 100%; }
+  .brand small { display: none; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .hint { display: none; }
+  .code pre { max-height: 60vh; }
+}
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script src="i18n.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><i aria-hidden="true">BMS</i><span>ESP32 BMS Lab</span><small data-t="USB 5V · 배터리 없음 · 키트 부품"></small></div>
+    <nav class="modes" data-ta="모드">
+      <button type="button" data-mode="lab" data-t="실습실"></button>
+      <button type="button" data-mode="build" data-t="조립"></button>
+      <button type="button" data-mode="parts" data-t="@부품"></button>
+      <button type="button" data-mode="code" data-t="코드"></button>
+      <button type="button" data-mode="guide" data-t="참고"></button>
+    </nav>
+    <label class="lang"><span data-t="언어"></span><select id="lang"></select></label>
+  </header>
+  <main class="stage" data-ta="3D 작업대">
+    <div id="view"></div>
+    <div id="labels"></div>
+    <div class="tip" id="tip" role="status"></div>
+    <div class="toast" id="toast" role="status"></div>
+    <div class="viewbar" id="viewbar" role="toolbar" data-ta="보기">
+      <button type="button" data-view="persp" data-t="전체 보기"></button>
+      <button type="button" data-view="top" data-t="위에서"></button>
+      <button type="button" data-view="focus" class="b-only" data-t="이번 단계 확대"></button>
+      <button type="button" id="vAll" class="b-only" aria-pressed="false" data-t="완성 모습"></button>
+      <button type="button" id="vTags" class="b-only" aria-pressed="true" data-t="구멍 좌표"></button>
+    </div>
+    <div class="hint" data-t="드래그 회전 · 휠 확대 · 우클릭 드래그 이동 · 부품에 마우스를 올리면 이름이 보입니다"></div>
+    <div class="err" id="err" data-t="3D 화면을 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 새로고침해 주세요."></div>
+  </main>
+  <aside class="panel" id="panel" aria-live="off"></aside>
+</div>
+<script type="module" src="lab.js"></script>
+</body>
+</html>
