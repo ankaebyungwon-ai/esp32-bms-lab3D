@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>가상 실험실 · ESP32 BMS Lab</title>
+<meta name="description" content="센서 키트 40종을 하나씩 꽂고 빼며 ESP32 회로를 자동으로 만들고, 가상 데이터로 여러 센서를 동시에 실험하는 가상 실험실.">
+<meta name="theme-color" content="#f6f3e8">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://esp32-bms-lab3d.vercel.app/sandbox.html">
+<meta property="og:title" content="가상 실험실 · ESP32 BMS Lab">
+<meta property="og:description" content="센서를 하나씩 추가·제거하며 ESP32 회로를 만들고 가상 데이터로 실험해 보세요.">
+<meta property="og:image" content="https://esp32-bms-lab3d.vercel.app/og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Roboto+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="kit.css">
+<style>
+/* 가상 실험실 전용 */
+.main { grid-template-columns: 262px minmax(0, 1fr) 390px; }
+.sl .addbtn, .sl .addbtn:hover { width: 28px; height: 28px; padding: 0; border-radius: 9px; border: 0; display: grid; grid-template-columns: none; place-items: center; font-weight: 800; font-size: 16px; color: #fff; background: linear-gradient(180deg, var(--navy-hi), var(--navy)); box-shadow: 0 2px 0 var(--navy-deep); }
+.sl .addbtn.rm, .sl .addbtn.rm:hover { background: linear-gradient(180deg, #e25a5a, var(--lv3)); box-shadow: 0 2px 0 #8f1f1f; }
+.sl .row { cursor: default; }
+.list.addlist { grid-template-rows: auto auto auto minmax(0, 1fr); }
+.presets { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 14px 6px; }
+.presets button { border: 1px solid var(--yellow-lo); background: #fff8e2; border-radius: 9px; padding: 3px 9px; font-size: 12px; font-weight: 700; color: var(--yellow-ink); }
+.lopts { padding: 0 14px 6px; }
+.lopts .swrow { padding: 4px 0; font-size: 12.5px; }
+#labsvg { width: 100%; height: auto; display: block; border-radius: 10px; }
+.labbox { position: relative; background: var(--tile); border: 1px solid var(--tile-border); border-radius: 14px; padding: 8px; }
+.empty { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); background: var(--terminal); color: #fff; border-radius: 12px; padding: 12px 16px; font-size: 13.5px; text-align: center; max-width: 80%; box-shadow: 0 10px 30px -10px rgba(14,25,50,.5); }
+.empty b { color: var(--yellow); }
+.inst { cursor: pointer; }
+.inst.sel > g { filter: drop-shadow(0 0 4px #fdd062) drop-shadow(0 0 2px #fdd062); }
+.wire.sel .w { stroke-width: 4.2; }
+.wire.hi .w { stroke-width: 4.4; filter: url(#glow); }
+.wire:not(.sel) .vlab { display: none; }
+.wire .vlab { fill: #0e1932; stroke: #fff; stroke-width: 3px; paint-order: stroke; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.scard2 { position: relative; text-align: left; background: var(--tile); border: 1.5px solid var(--tile-border); border-radius: 13px; padding: 8px 10px 6px; cursor: pointer; }
+.scard2.sel { border-color: var(--yellow-lo); background: #fff8e2; box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 40%, transparent); }
+.scard2 .h { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; padding-right: 70px; }
+.scard2 .h .no { font-family: var(--f-mono); font-size: 10.5px; color: #fff; background: var(--navy); border-radius: 5px; padding: 0 5px; }
+.scard2 .p { font-family: var(--f-mono); font-size: 10.5px; color: var(--faint); }
+.scard2 .v { font-family: var(--f-display); font-size: 19px; font-weight: 600; line-height: 1.2; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scard2 .v small { font-family: var(--f-ui); font-size: 11px; color: var(--muted); font-weight: 500; }
+.scard2 canvas { width: 100%; height: 34px; display: block; margin-top: 2px; }
+.scard2 .x { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--card-border); background: #fff; font-size: 12px; line-height: 1; color: var(--muted); }
+.scard2 .lvb { position: absolute; right: 32px; top: 6px; }
+.scard2 .v { padding-right: 4px; }
+.pinbar { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.pinbar i { width: 10px; height: 10px; border-radius: 3px; background: var(--track); display: inline-block; }
+.pinbar i.on { background: var(--navy); }
+.pinbar i.bms { outline: 1.5px dashed var(--lv3); outline-offset: -1px; }
+.ptab td.g { font-family: var(--f-mono); font-weight: 700; white-space: nowrap; }
+.ptab tr.free td { color: var(--faint); }
+.tag2 { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 0 6px; border-radius: 5px; background: var(--track); }
+.tag2.ana { background: #d8efe5; color: #0f5a43; } .tag2.out { background: #fde8c4; color: #7a4a00; } .tag2.in { background: #dbe6f7; color: #1e3a5c; } .tag2.io { background: #e2e0f5; color: #33296b; }
+.sumrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.sumrow .tile { min-width: 0; }
+@media (max-width: 1360px) { .main { grid-template-columns: minmax(0, 1fr) 370px; } .list.addlist { display: grid; grid-column: 1 / -1; max-height: 330px; } }
+@media (max-width: 900px) { .main { grid-template-columns: 1fr; } .list.addlist { max-height: none; } }
+</style>
+</head>
+<body data-mode="run">
+<div class="app">
+  <header class="top">
+    <a class="logo" href="index.html" aria-label="ESP32 BMS Lab 처음으로"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="19.5" y="9.5" width="2" height="5" rx="1" fill="#fff"/><path d="M12.2 7.8 8.4 12.6h3l-1 3.6 3.8-4.8h-3z" fill="#fdd062"/></svg></a>
+    <a class="word" href="index.html">ESP32 BMS <em>LAB</em></a>
+    <span class="sep" aria-hidden="true"></span>
+    <a class="credit" href="https://github.com/ankaebyungwon-ai/esp32-bms-lab3D"><span class="gh" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="#fff"><path d="M8 0a8 8 0 0 0-2.5 15.6c.4 0 .5-.2.5-.4v-1.5c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.3 1.9.9 2.3.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-4 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.5 7.5 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.4 1.1.2 1.9.1 2.1.5.6.8 1.3.8 2.1 0 3.1-1.9 3.7-3.6 3.9.3.3.6.8.6 1.5v2.2c0 .2.1.5.6.4A8 8 0 0 0 8 0z"/></svg></span><span><small>소스 코드</small><b>github · esp32-bms-lab3D</b></span></a>
+    <span class="spacer"></span>
+    <span class="tlabel">보기</span>
+    <nav class="segtop" aria-label="보기">
+      <a href="index.html#parts"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>조립</a>
+      <a href="index.html#run"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>실험</a>
+      <a href="sensors.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>센서 40종</a>
+      <a href="sandbox.html" aria-current="page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7 15h10"/></svg>가상 실험실</a>
+    </nav>
+    <button type="button" class="iconbtn" id="sound" aria-pressed="false" aria-label="부저 소리를 스피커로 듣기" title="부저 소리를 스피커로 듣기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
+  </header>
+
+  <div class="main">
+    <nav class="card list addlist" aria-label="센서 추가">
+      <div class="lhead">
+        <h2>센서 꽂기·빼기</h2><p class="lsub">＋ 를 누르면 ESP32 회로에 바로 연결돼요</p>
+        <input class="search" id="q" type="search" placeholder="이름·모델·번호 검색" aria-label="센서 검색">
+      </div>
+      <div class="presets" id="presets"></div>
+      <div class="lopts">
+        <div class="swrow"><span id="bmsLbl">BMS 보드 핀 피하기</span><button type="button" class="switch" role="switch" id="avoidBms" aria-checked="false" aria-labelledby="bmsLbl"><i></i></button></div>
+      </div>
+      <ul class="sl" id="slist"></ul>
+    </nav>
+
+    <section class="card bench" aria-label="가상 실험실">
+      <div class="bhead">
+        <span class="chipi" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2b2611" stroke-width="2.4"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/></svg></span>
+        <div>
+          <h2>가상 실험실 <span class="status" id="bStatus"><i></i><span id="bLv">센서 없음</span></span></h2>
+          <p id="bSub">센서를 꽂으면 ESP32 핀과 브레드보드 자리가 자동으로 정해져요</p>
+        </div>
+        <div class="btools">
+          <button type="button" class="tbtn" id="play" aria-pressed="true" aria-label="일시정지"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+          <button type="button" class="tbtn" id="speed" title="시뮬레이션 속도">×1</button>
+          <button type="button" class="tbtn" id="tripReset" title="통합 TRIP 리셋">TRIP 리셋</button>
+        </div>
+      </div>
+
+      <div class="labbox">
+        <svg id="labsvg" viewBox="0 72 712 578" role="img" aria-label="가상 실험실 ESP32 회로"></svg>
+        <div class="empty" id="empty">왼쪽에서 <b>＋</b>로 센서를 꽂거나 위의 <b>예시 세트</b>를 골라 보세요</div>
+        <div class="circleg"><span><i style="background:#d62f2f"></i>5V</span><span><i style="background:#f08a12"></i>3V3</span><span><i style="background:#1c1c1c"></i>GND</span><span><i style="background:#2563c9"></i>디지털</span><span><i style="background:#1e9e55"></i>아날로그</span><span><i style="background:#0f8f86"></i>1-Wire</span><span class="r">모듈을 누르면 조작 · 빛나는 선 = HIGH</span></div>
+      </div>
+
+      <div class="cards" id="cards" aria-live="off"></div>
+
+      <div class="chartbox">
+        <div class="vizhead" style="margin-bottom:4px"><span id="chartT">선택한 센서 · 최근 60초</span><span class="mono" id="tNow">0.0s</span></div>
+        <canvas id="chart" width="900" height="170" aria-label="선택한 센서 그래프"></canvas>
+        <div class="flab" id="legend"></div>
+      </div>
+
+      <div class="term">
+        <div class="thead">
+          <div class="tl"><b style="color:#fff">실험 기록</b><span class="mono">선택한 센서 시리얼 + 판정 변화</span></div>
+          <div class="tl"><button type="button" class="mini" id="clr">지우기</button></div>
+        </div>
+        <pre id="serial" tabindex="0" aria-label="실험 기록"></pre>
+        <div class="tfoot"><span id="logInfo">기록 0줄</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="mini" id="csv">CSV 저장 (1초 간격)</button><button type="button" class="mini y" id="gen10">가상 데이터 10분 바로 만들기</button></span></div>
+      </div>
+    </section>
+
+    <aside class="card panel" aria-label="실험 패널">
+      <div class="phead"><span class="num" id="pnum">··</span><div><div class="kick" id="pkick">가상 실험실</div><h1 id="ptitle">센서를 꽂아 보세요</h1></div></div>
+      <div class="ptabs" role="tablist" id="ptabs">
+        <button type="button" role="tab" data-tab="ctrl" aria-selected="true">조작</button>
+        <button type="button" role="tab" data-tab="pins" aria-selected="false">핀 배치</button>
+        <button type="button" role="tab" data-tab="wire" aria-selected="false">배선·준비물</button>
+        <button type="button" role="tab" data-tab="bms" aria-selected="false">통합 판정</button>
+      </div>
+      <div class="pbody" id="pbody" role="tabpanel"></div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script type="module" src="sandbox.js"></script>
+</body>
+</html>

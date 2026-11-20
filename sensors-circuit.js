@@ -13,11 +13,11 @@ export const ESP_L = { 19: '3V3', 18: 'EN', 17: 'VP', 16: 'VN', 15: 'GPIO34', 14
 export const ESP_R = { 19: 'GND', 18: 'GPIO23', 17: 'GPIO22', 16: 'TX', 15: 'RX', 14: 'GPIO21', 13: 'GND', 12: 'GPIO19', 11: 'GPIO18', 10: 'GPIO5', 9: 'GPIO17', 8: 'GPIO16', 7: 'GPIO4', 6: 'GPIO0', 5: 'GPIO2', 4: 'GPIO15', 3: 'D1', 2: 'D0', 1: 'CLK' };
 export const COLORS = { v5: '#d62f2f', gnd: '#1c1c1c', v3: '#f08a12', ana: '#1e9e55', dig: '#2563c9', ow: '#0f8f86', jmp: '#ececec' };
 export const COLOR_KO = { v5: '빨강', gnd: '검정', v3: '주황', ana: '초록', dig: '파랑', ow: '청록', jmp: '흰색' };
-const NET_KO = { v5: '5V 전원', gnd: 'GND', v3: '3V3 전원', ana: '아날로그 신호', dig: '디지털 신호', ow: '1-Wire 데이터', jmp: '같은 신호 잇기' };
+export const NET_KO = { v5: '5V 전원', gnd: 'GND', v3: '3V3 전원', ana: '아날로그 신호', dig: '디지털 신호', ow: '1-Wire 데이터', jmp: '같은 신호 잇기' };
 const RAIL_NET = { 'L+': '5V', 'L-': 'GND', 'R+': '3V3', 'R-': 'GND' };
 const BANDS = { '10k': ['#7a4a1d', '#111', '#f08a12'], '220': ['#d62f2f', '#d62f2f', '#7a4a1d'], '330': ['#f08a12', '#f08a12', '#7a4a1d'] };
-const BAND_KO = { '10k': '갈·검·주', '220': '빨·빨·갈', '330': '주·주·갈' };
-const RES_KO = { '10k': '10kΩ', '220': '220Ω', '330': '330Ω' };
+export const BAND_KO = { '10k': '갈·검·주', '220': '빨·빨·갈', '330': '주·주·갈' };
+export const RES_KO = { '10k': '10kΩ', '220': '220Ω', '330': '330Ω' };
 const BMS_GPIO = ['GPIO34', 'GPIO35', 'GPIO4', 'GPIO26', 'GPIO25', 'GPIO27', 'GPIO14', 'GPIO33', 'GPIO13', 'GPIO18', 'GPIO23', 'GPIO17', 'GPIO16', 'GPIO19'];
 
 // ───────── 그림 좌표 ─────────
@@ -29,7 +29,7 @@ const TOP = 172;                                      // 위 보드 + 레일의 
 export const xRow = r => X0 + (63 - r) * P;
 export const yCol = c => TOP + (13.5 - c) * P;
 const BASE_ROW = 44;                                  // 모듈 가장 오른쪽 핀이 꽂히는 행
-const MOD_K = P / 20;                                 // 모듈 그림 축소 비율 (모듈 핀 간격 20 → 구멍 간격 10)
+export const MOD_K = P / 20;                                 // 모듈 그림 축소 비율 (모듈 핀 간격 20 → 구멍 간격 10)
 const MOD_LEG = 116;                                  // 모듈 다리 길이 (모듈 좌표) — 몸체가 레일 바깥에 오도록
 
 export function parseHole(spec) {
@@ -56,7 +56,7 @@ export function holeShort(spec) {
   if (h.kind === 'rail') return `${RAIL_NET[h.board + h.sign]} 레일`;
   return `${h.board === 'L' ? '아래' : '위'} ${h.col}${h.row}${h.esp ? ' · ' + gpioName(h.esp).replace('GPIO', 'IO') : ''}`;
 }
-function espHole(gpio) {
+export function espHole(gpio) {
   const n = gpio === 'GPIO36' ? 'VP' : gpio === 'GPIO39' ? 'VN' : gpio;
   for (const [r, v] of Object.entries(ESP_L)) if (v === n) return 'LA' + r;
   for (const [r, v] of Object.entries(ESP_R)) if (v === n) return (n === 'GPIO4' ? 'RH' : 'RJ') + r;
@@ -64,7 +64,7 @@ function espHole(gpio) {
 }
 
 // ───────── 회로 만들기 ─────────
-function netOfPin(p) {
+export function netOfPin(p) {
   if (!p.esp) return null;
   if (p.esp === '3V3') return 'v3';
   if (p.esp === 'GND') return 'gnd';
@@ -72,7 +72,7 @@ function netOfPin(p) {
   if (p.esp.startsWith('GPIO')) return 'sig';
   return null;   // 연결 안 함
 }
-function physPins(s) {
+export function physPins(s) {
   if (s.key === 'magiccup') return [
     { mod: 'G', esp: 'GND', grp: 'A' }, { mod: '+', esp: '3V3', grp: 'A' }, { mod: 'S', sig: 'SA', esp: 'GPIO32', grp: 'A' }, { mod: 'L', sig: 'LA', esp: 'GPIO21', grp: 'A' },
     { mod: 'G', esp: 'GND', grp: 'B' }, { mod: '+', esp: '3V3', grp: 'B' }, { mod: 'S', sig: 'SB', esp: 'GPIO22', grp: 'B' }, { mod: 'L', sig: 'LB', esp: 'GPIO5', grp: 'B' }];
@@ -199,7 +199,7 @@ function holesFor(board) {
   const cols = COLX[board], x1 = xRow(63) - P / 2, x2 = xRow(1) + P / 2;
   return Object.entries(cols).map(([c, v]) => `<rect x="${x1}" y="${yCol(v) - P / 2}" width="${x2 - x1}" height="${P}" fill="url(#hp)"/>`).join('');
 }
-function boardSvg(board) {
+export function boardSvg(board) {
   const cols = COLX[board], vals = Object.values(cols), top = yCol(Math.max(...vals)) - P * 1.1, bot = yCol(Math.min(...vals)) + P * 1.1;
   const x1 = xRow(63) - P * 1.4, x2 = xRow(1) + P * 1.4;
   const ch = board === 'L' ? [cols.J, cols.A] : [cols.J, cols.A];
@@ -222,7 +222,7 @@ function boardSvg(board) {
   s += `<text x="${x2 - 4}" y="${board === 'R' ? top - 4 : bot + 11}" text-anchor="end" font-size="10" font-weight="700" fill="#5d6272">${board === 'R' ? '위 보드 · 레일 + = 3V3, − = GND' : '아래 보드 · 레일 + = 5V, − = GND'}</text>`;
   return s;
 }
-function espSvg(used) {
+export function espSvg(used) {
   const xa = xRow(22.8), xb = xRow(-1.2), ya = yCol(-0.75), yb = yCol(-12.25);
   let s = `<g class="esp"><rect x="${xa}" y="${ya}" width="${xb - xa}" height="${yb - ya}" rx="4" fill="#1d2330" stroke="#0b0f17"/>`;
   s += `<rect x="${xRow(22.4)}" y="${yCol(-3.2)}" width="${xRow(13.2) - xRow(22.4)}" height="${yCol(-9.8) - yCol(-3.2)}" rx="2" fill="#b9bec7" stroke="#7d848f"/><text x="${(xRow(22.4) + xRow(13.2)) / 2}" y="${yCol(-6.5) + 3}" text-anchor="middle" font-size="8" font-family="JetBrains Mono" fill="#4b5262" font-weight="700">ESP32-WROOM</text>`;
@@ -240,14 +240,14 @@ function espSvg(used) {
   for (let r = 1; r <= 19; r++) s += pin(r, 'L') + pin(r, 'R');
   return s + '</g>';
 }
-function wirePath(a, b) {
+export function wirePath(a, b) {
   const A = parseHole(a), B = parseHole(b);
   const dx = B.x - A.x, dy = B.y - A.y;
   if (Math.abs(dx) < P * 1.5) { const bend = 9 + Math.abs(dy) * 0.08; return `M${A.x} ${A.y} C${A.x + bend} ${A.y + dy * 0.3} ${B.x + bend} ${B.y - dy * 0.3} ${B.x} ${B.y}`; }
   const my = (A.y + B.y) / 2;
   return `M${A.x} ${A.y} C${A.x} ${my} ${B.x} ${my} ${B.x} ${B.y}`;
 }
-function resSvg(it) {
+export function resSvg(it) {
   const A = parseHole(it.a), B = parseHole(it.b), y = A.y, xa = Math.min(A.x, B.x), xb = Math.max(A.x, B.x), mid = (xa + xb) / 2, w = Math.min(26, xb - xa - 6);
   const bands = BANDS[it.val] || BANDS['10k'];
   return `<line x1="${xa}" y1="${y}" x2="${xb}" y2="${y}" stroke="#9aa0a3" stroke-width="1.8"/><circle cx="${xa}" cy="${y}" r="2" fill="#9aa0a3"/><circle cx="${xb}" cy="${y}" r="2" fill="#9aa0a3"/><rect x="${mid - w / 2}" y="${y - 4.2}" width="${w}" height="8.4" rx="4" fill="#e2cf9f" stroke="#b9a46e"/>${bands.map((c, i) => `<rect x="${mid - w / 2 + 4 + i * 4.2}" y="${y - 4.2}" width="2.4" height="8.4" fill="${c}"/>`).join('')}<rect x="${mid + w / 2 - 6}" y="${y - 4.2}" width="2.4" height="8.4" fill="#c9a24a"/>`;
