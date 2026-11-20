@@ -214,6 +214,50 @@ th.cur, td.cur { background: #fff8e2; }
 .toast { position: fixed; left: 50%; top: 78px; transform: translate(-50%, -8px); background: var(--terminal); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s, transform .2s; z-index: 30; pointer-events: none; max-width: 90vw; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 .listsel { display: none; }
+/* 조립 따라하기 */
+.buildview, .runview { display: flex; flex-direction: column; gap: 12px; }
+body[data-mode="build"] .runview, body[data-mode="run"] .buildview { display: none; }
+body[data-mode="build"] #play, body[data-mode="build"] #speed, body[data-mode="build"] #resetSim { display: none; }
+.circbox { background: var(--tile); border: 1px solid var(--tile-border); border-radius: 14px; padding: 8px; }
+#circsvg, #modsvg.circ { width: 100%; height: auto; display: block; border-radius: 10px; max-height: calc(100vh - 300px); }
+#modsvg.circ { max-height: none; background: none; border: 0; }
+.circleg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--muted); padding: 6px 4px 0; }
+.circleg i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.circleg .r { margin-left: auto; color: var(--faint); }
+.it { cursor: pointer; }
+.it.fut { display: none; }
+.it.done { opacity: .5; }
+.it.base.done { opacity: .75; }
+.it.cur .w { stroke-width: 4.6; filter: url(#glow); animation: wpulse 1.2s ease-in-out infinite; }
+.it.cur > g, .it.cur > rect, .it.cur > line { filter: drop-shadow(0 0 3px #fdd062) drop-shadow(0 0 2px #fdd062); }
+@keyframes wpulse { 50% { opacity: .55; } }
+.it.hi .w { stroke-width: 4.4; filter: url(#glow); }
+.it .vlab { fill: #0e1932; stroke: #fff; stroke-width: 3px; paint-order: stroke; }
+.ep.used rect { filter: drop-shadow(0 0 2px #fdd062); }
+.stepbar { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; align-items: center; gap: 6px; background: var(--tile); border: 1px solid var(--tile-border); border-radius: 14px; padding: 4px 8px; }
+.round { width: 34px; height: 34px; border-radius: 50%; border: 0; background: linear-gradient(180deg, var(--navy-hi), var(--navy)); color: #fff; display: grid; place-items: center; box-shadow: 0 2px 0 var(--navy-deep); }
+.round:disabled { opacity: .4; cursor: default; }
+.strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 6px 2px; scroll-snap-type: x proximity; }
+.strip::-webkit-scrollbar { display: none; }
+.schip { flex: none; display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--card-border); background: #fff; border-radius: 11px; padding: 5px 10px 5px 5px; font-weight: 700; font-size: 12.5px; white-space: nowrap; scroll-snap-align: center; }
+.schip b { font-family: var(--f-mono); font-size: 10.5px; min-width: 20px; height: 20px; border-radius: 6px; background: var(--navy); color: #fff; display: grid; place-items: center; }
+.schip.done b { background: var(--green); }
+.schip.on { border-color: var(--yellow-lo); background: #fff8e2; box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 45%, transparent); }
+.schip.on b { background: var(--yellow); color: var(--yellow-ink); }
+.vizhead { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--muted); font-weight: 700; }
+.mini2 { border: 1px solid var(--card-border); background: #fff; border-radius: 8px; padding: 2px 9px; font-size: 12px; font-weight: 700; }
+.bgrid.wide { grid-template-columns: 1fr; }
+.sl .ok { color: var(--green); font-weight: 800; margin-left: 3px; }
+/* 오른쪽 조립 탭 */
+.wl { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.wl li { display: flex; gap: 8px; align-items: flex-start; background: var(--tile); border: 1px solid var(--tile-border); border-radius: var(--r-tile); padding: 8px 10px; font-size: 13px; }
+.wl .sw { flex: none; width: 18px; height: 6px; border-radius: 3px; margin-top: 7px; border: 1px solid rgba(0,0,0,.15); }
+.stnav { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.checks label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 9px; cursor: pointer; background: var(--tile); border: 1px solid var(--tile-border); }
+.checks input { accent-color: var(--green); width: 16px; height: 16px; margin-top: 3px; flex: none; }
+.checks input:checked + span { color: var(--faint); text-decoration: line-through; }
+.bom td:nth-child(2) { font-family: var(--f-mono); font-weight: 700; white-space: nowrap; }
 
 @media (max-width: 1360px) {
   .main { grid-template-columns: minmax(0, 1fr) 380px; }
@@ -222,6 +266,7 @@ th.cur, td.cur { background: #fff8e2; }
   .credit, .sep { display: none; }
 }
 @media (max-width: 1040px) { .bgrid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { #circsvg { max-height: none; } .circleg .r { display: none; } #modeSeg button { padding: 5px 7px; } }
 @media (max-width: 900px) {
   body { overflow: auto; }
   .app { height: auto; grid-template-rows: auto auto; }
@@ -277,14 +322,29 @@ th.cur, td.cur { background: #fff8e2; }
         </div>
         <select class="sel listsel" id="listSel" aria-label="센서 고르기"></select>
         <div class="btools">
+          <div class="seg" role="radiogroup" aria-label="모드" id="modeSeg"><button type="button" role="radio" data-mode="build" aria-checked="true">🔧 조립 따라하기</button><button type="button" role="radio" data-mode="run" aria-checked="false">⚡ 가상 실험</button></div>
           <button type="button" class="tbtn" id="play" aria-pressed="true" title="일시정지 / 재생" aria-label="일시정지"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
           <button type="button" class="tbtn" id="speed" title="시뮬레이션 속도">×1</button>
           <button type="button" class="tbtn" id="resetSim" title="이 센서 실험 초기화">초기화</button>
         </div>
       </div>
 
-      <div class="bgrid">
+      <div id="buildView" class="buildview">
+        <div class="circbox">
+          <svg id="circsvg" viewBox="0 72 712 522" role="img" aria-label="예시 ESP32 회로 (브레드보드)"></svg>
+          <div class="circleg"><span><i style="background:#d62f2f"></i>5V</span><span><i style="background:#f08a12"></i>3V3</span><span><i style="background:#1c1c1c"></i>GND</span><span><i style="background:#2563c9"></i>디지털</span><span><i style="background:#1e9e55"></i>아날로그</span><span><i style="background:#0f8f86"></i>1-Wire</span><span class="r">선·부품을 누르면 그 단계로 · 마우스를 올리면 구멍 이름</span></div>
+        </div>
+        <nav class="stepbar" aria-label="조립 단계">
+          <button type="button" class="round" id="stPrev" aria-label="이전 단계"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
+          <div class="strip" id="strip"></div>
+          <button type="button" class="round" id="stNext" aria-label="다음 단계"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
+        </nav>
+      </div>
+
+      <div id="runView" class="runview">
+      <div class="bgrid" id="bgrid">
         <div class="viz panelbox">
+          <div class="vizhead"><span class="mono" id="vizT">모듈</span><button type="button" class="mini2" id="vizToggle">회로로 보기</button></div>
           <svg id="modsvg" viewBox="0 0 340 210" role="img" aria-label="가상 모듈"></svg>
           <div class="pins" id="pinChips" aria-live="off"></div>
         </div>
@@ -319,11 +379,13 @@ th.cur, td.cur { background: #fff8e2; }
         <pre id="serial" tabindex="0" aria-label="시리얼 출력"></pre>
         <div class="tfoot"><span id="logInfo">기록 0줄</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="mini" id="csv">CSV 저장</button><button type="button" class="mini" id="gen10">가상 데이터 10분 바로 만들기</button></span></div>
       </div>
+      </div>
     </section>
 
     <aside class="card panel" aria-label="센서 설명">
       <div class="phead"><span class="num" id="pnum">01</span><div><div class="kick" id="pkick"></div><h1 id="ptitle"></h1></div></div>
       <div class="ptabs" role="tablist" id="ptabs">
+        <button type="button" role="tab" data-tab="build" aria-selected="false">조립</button>
         <button type="button" role="tab" data-tab="info" aria-selected="true">설명</button>
         <button type="button" role="tab" data-tab="wire" aria-selected="false">배선</button>
         <button type="button" role="tab" data-tab="code" aria-selected="false">코드</button>

@@ -2,6 +2,7 @@
    흐름: 조작(env) → sim(전기 신호) → 잡음·고장·ADC·필터 → read(예제 코드와 같은 계산) → BMS 판정 → 그래프·시리얼·CSV
    실제 보드: Web Serial로 예제 코드의 '이름:값' 줄을 읽어 같은 화면에 표시 */
 import { SENSORS, BOARDS, CATS, IR_KEYS, irName } from './sensors-data.js';
+import { buildCircuit, circuitSvg, VIEWBOX, holeNice, COLORS, COLOR_KO } from './sensors-circuit.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -27,6 +28,15 @@ const TH = {};                   // 사용자가 바꾼 판정 기준 (센서별
 let cur = SENSORS[0];
 let R = null;                    // 지금 실험 상태
 let tab = 'info';
+// 조립 따라하기
+let mode = 'build';                 // 'build' = 조립 따라하기, 'run' = 가상 실험
+let bstep = 0;                      // 지금 조립 단계
+let CIRC = null;                    // 이 센서의 예시 회로
+let vizCircuit = false;             // 실험 모드에서 회로로 보기
+let PROG = {};
+try { PROG = JSON.parse(localStorage.getItem('bms-sensor-build') || '{}'); } catch (e) {}
+const prog = n => (PROG[n] = PROG[n] || { at: 0, max: 0, checks: {} });
+const saveProg = () => { try { localStorage.setItem('bms-sensor-build', JSON.stringify(PROG)); } catch (e) {} };
 const SRC = { real: false, port: null, reader: null, writer: null, closed: null, wclosed: null, t0: 0, lastCmd: '', lastCmdT: 0 };
 const LOG = [];
 
@@ -220,13 +230,14 @@ function glyphSvg(s, cx, cy) {
     default: return '';
   }
 }
-function moduleSvg(s) {
+function moduleSvg(s, opt = {}) { // opt.circuit: 핀 간격 20 고정, 다리를 opt.leg만큼 길게, 핀 위치를 opt.pins에 기록
   const G = modGeom(s), [c1, c2] = PCB[s.pcb] || PCB.black;
   const defs = `<defs><pattern id="mesh" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="#8b9098"/><circle cx="2" cy="2" r="1.1" fill="#5c6068"/></pattern><radialGradient id="cap" cx=".4" cy=".35"><stop offset="0" stop-color="#5a6476"/><stop offset="1" stop-color="#151a24"/></radialGradient><linearGradient id="pcbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c2}"/><stop offset="1" stop-color="${c1}"/></linearGradient></defs>`;
   const board = (x, y, w, h, pins, glyph, label) => {
-    const gap = Math.min(pins.some(p => p.length > 2) ? 28 : 20, (w - 24) / Math.max(1, pins.length - 1 || 1));
+    const gap = opt.circuit ? 20 : Math.min(pins.some(p => p.length > 2) ? 28 : 20, (w - 24) / Math.max(1, pins.length - 1 || 1));
+    const legEnd = y + h + (opt.circuit ? opt.leg : 16);
     const px0 = x + w / 2 - gap * (pins.length - 1) / 2;
-    const pinsSvg = pins.map((p, i) => { const px = px0 + gap * i; return `<rect x="${px - 3.5}" y="${y + h - 13}" width="7" height="7" fill="#111" stroke="#e8c76a" stroke-width="1.5"/><line x1="${px}" y1="${y + h - 6}" x2="${px}" y2="${y + h + 16}" stroke="#d6b04d" stroke-width="2.4"/><text x="${px}" y="${y + h + 30}" text-anchor="middle" font-size="${p.length > 4 ? 8 : 9.5}" font-family="JetBrains Mono" fill="#0e1932" font-weight="700">${esc(p)}</text>`; }).join('');
+    const pinsSvg = pins.map((p, i) => { const px = px0 + gap * i; if (opt.pins) opt.pins.push({ x: px, y: legEnd, name: p }); return `<rect x="${px - 3.5}" y="${y + h - 13}" width="7" height="7" fill="#111" stroke="#e8c76a" stroke-width="1.5"/><line x1="${px}" y1="${y + h - 6}" x2="${px}" y2="${legEnd}" stroke="#d6b04d" stroke-width="${opt.circuit ? 3.2 : 2.4}"/>${opt.circuit ? '' : `<text x="${px}" y="${y + h + 30}" text-anchor="middle" font-size="${p.length > 4 ? 8 : 9.5}" font-family="JetBrains Mono" fill="#0e1932" font-weight="700">${esc(p)}</text>`}`; }).join('');
     return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="url(#pcbg)" stroke="#0005"/>${[[x + 7, y + 7], [x + w - 7, y + 7]].map(([a, b]) => `<circle cx="${a}" cy="${b}" r="3.2" fill="#f6f3e8" stroke="#bfb9a6"/>`).join('')}${glyph}<text x="${x + w - 10}" y="${y + h - 18}" text-anchor="end" font-size="8" font-family="JetBrains Mono" fill="#ffffff99">${esc(label)}</text>${pinsSvg}`;
   };
   const pinNames = s.pins.map(p => p.mod.replace(/ \(.+\)/, '').replace(/^A: |^B: /, ''));
@@ -242,7 +253,7 @@ function moduleSvg(s) {
     if (hasSig) extra += `<circle cx="${G.x + 14}" cy="${G.y + 22}" r="3.6" fill="#33402f" id="ledSig"/><circle cx="${G.x + 14}" cy="${G.y + 34}" r="3.6" fill="#ff4d4d" id="ledPwr"/><text x="${G.x + 21}" y="${G.y + 25}" font-size="6.5" fill="#ffffff88" font-family="JetBrains Mono">L1</text><text x="${G.x + 21}" y="${G.y + 37}" font-size="6.5" fill="#ffffff88" font-family="JetBrains Mono">PWR</text>`;
     body = board(G.x, G.y, G.w, G.h, pinNames, glyphSvg(s, cx, cy) + extra, s.model.split(' ')[0]);
   }
-  return defs + `<g id="scene">${sceneSvg(s, G)}</g><g id="modg" style="transform-origin:${G.x + G.w / 2}px ${G.y + G.h / 2}px;transition:transform .15s">${body}</g>`;
+  return defs + `<g id="scene">${sceneSvg(s, G)}</g><g id="modg" style="transform-box:fill-box;transform-origin:center;transition:transform .15s">${body}</g>`;
 }
 function cupGlyph(cx, cy, n) { return `<rect x="${cx - 22}" y="${cy - 7}" width="26" height="12" rx="6" fill="#e8eef5cc" stroke="#9aa3b5"/><circle cx="${cx + 18}" cy="${cy}" r="11" fill="#fff" stroke="#9aa3b5" id="gCup${n}"/>`; }
 function sceneSvg(s, G) { // 모듈 주변의 실험 소품 (자석, 벽, 불꽃, 팬 …)
@@ -266,7 +277,8 @@ function sceneSvg(s, G) { // 모듈 주변의 실험 소품 (자석, 벽, 불꽃
   return '';
 }
 function updateModule(o, last) {
-  const v = (o && o.vis) || {}, svg = $('modsvg');
+  const v = (o && o.vis) || {}, svg = activeSvg();
+  if (!svg.firstChild) return;
   const q = id => svg.querySelector('#' + id);
   const set = (id, a, val) => { const el = q(id); if (el) el.setAttribute(a, val); };
   const sig = o && o.led ? Object.values(o.led).some(Boolean) : false;
@@ -299,6 +311,53 @@ function updateModule(o, last) {
   if (k === 'encoder') set('gKnob', 'transform', `rotate(${(last.count || 0) * 18} ${G.x + G.w / 2} ${cy})`);
   if (k === 'button') set('gBtn', 'fill', e.press ? '#f6c047' : '#111');
   if (k === 'magiccup') { const c = (n, b) => set('gCup' + n, 'fill', `rgb(255,${Math.round(255 - b * 0.35)},${Math.round(255 - b * 0.9)})`); c('A', v.la || 0); c('B', v.lb || 0); }
+  if (mode === 'run' && vizCircuit) { // 회로의 신호선: HIGH면 빛나고, ESP32 쪽 끝에 값 표시
+    svg.querySelectorAll('.it[data-sig]').forEach(g => {
+      const [val, c2] = pinValue({ sig: g.dataset.sig });
+      g.classList.toggle('hi', c2 === 'hi');
+      const t = g.querySelector('.vlab'); if (t) t.textContent = c2 && c2 !== 'hi' && c2 !== 'lo' ? c2 : val;
+    });
+  }
+}
+const activeSvg = () => mode === 'build' ? $('circsvg') : $('modsvg');
+function makeCircuit(s) {
+  const pins = []; moduleSvg(s, { circuit: true, leg: 116, pins });
+  const o = s.sim(initEnv(s), {}, { B: BOARDS.esp32, t: 0, dt: DT, noise: 0 }) || {};
+  const analog = new Set(Object.entries(o.ch || {}).filter(([, c]) => c.k === 'a').map(([k]) => k));
+  return buildCircuit(s, analog, pins);
+}
+function renderViz() {
+  const s = cur, m = $('modsvg');
+  if (mode === 'build') {
+    m.innerHTML = '';
+    $('circsvg').innerHTML = circuitSvg(s, CIRC, { step: bstep, build: true, moduleSvg });
+    return;
+  }
+  $('circsvg').innerHTML = '';
+  if (vizCircuit) { m.setAttribute('viewBox', VIEWBOX); m.classList.add('circ'); m.innerHTML = circuitSvg(s, CIRC, { step: Infinity, build: false, moduleSvg }); }
+  else { m.setAttribute('viewBox', '0 0 340 210'); m.classList.remove('circ'); m.innerHTML = moduleSvg(s); }
+  $('bgrid').classList.toggle('wide', vizCircuit);
+  $('vizT').textContent = vizCircuit ? `예시 ESP32 회로 · 실시간 신호${board === 'uno' ? ' (값은 Uno 시뮬레이션)' : ''}` : '모듈';
+  $('vizToggle').textContent = vizCircuit ? '모듈로 보기' : '회로로 보기';
+}
+function renderStrip() {
+  const st = CIRC.steps, pr = prog(cur.n);
+  $('strip').innerHTML = st.map((x, i) => `<button type="button" class="schip${i === bstep ? ' on' : ''}${i <= pr.max && i !== bstep ? ' done' : ''}" data-st="${i}" aria-current="${i === bstep ? 'step' : 'false'}"><b>${i + 1}</b>${esc(x.short.replace(/^@/, ''))}</button>`).join('');
+  $('stPrev').disabled = bstep === 0; $('stNext').disabled = bstep === st.length - 1;
+  const on = $('strip').querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+}
+function goStep(i) {
+  const st = CIRC.steps; i = clamp(i, 0, st.length - 1); bstep = i;
+  const pr = prog(cur.n); pr.at = i; pr.max = Math.max(pr.max, i); saveProg();
+  renderViz(); renderStrip(); if (tab === 'build') renderPanel();
+}
+function setMode(m, opts = {}) {
+  if (m === mode && !opts.force) return;
+  mode = m; document.body.dataset.mode = m;
+  try { sessionStorage.setItem('bms-sensor-mode', m); } catch (e) {}
+  document.querySelectorAll('#modeSeg [data-mode]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.mode === m)));
+  if (m === 'build') tab = 'build'; else if (tab === 'build') tab = 'info';
+  renderViz(); if (m === 'build') renderStrip(); renderPanel();
 }
 
 // ───────── 목록 ─────────
@@ -308,7 +367,7 @@ function renderList() {
   $('cats').innerHTML = cats.map(([k, n]) => `<button type="button" data-cat="${k}" aria-pressed="${k === catFilter}">${esc(n)}</button>`).join('');
   const q = query.trim().toLowerCase();
   const items = SENSORS.filter(s => (!catFilter || s.cat === catFilter) && (!q || `${s.n} ${s.name} ${s.model} ${s.key}`.toLowerCase().includes(q)));
-  $('slist').innerHTML = items.map(s => `<li><button type="button" data-n="${s.n}" class="${s === cur ? 'on' : ''}" aria-current="${s === cur ? 'true' : 'false'}"><span class="no">${pad2(s.n)}</span><span class="nm">${esc(s.name)}<small>${esc(s.model)}</small></span><span class="ctag ${s.cat}">${CATS[s.cat].tag}</span></button></li>`).join('') || '<li style="padding:10px;color:var(--muted);font-size:13px">찾는 센서가 없어요</li>';
+  $('slist').innerHTML = items.map(s => `<li><button type="button" data-n="${s.n}" class="${s === cur ? 'on' : ''}" aria-current="${s === cur ? 'true' : 'false'}"><span class="no">${pad2(s.n)}</span><span class="nm">${esc(s.name)}${PROG[s.n] && PROG[s.n].done ? '<span class="ok" title="조립 완료">✓</span>' : ''}<small>${esc(s.model)}</small></span><span class="ctag ${s.cat}">${CATS[s.cat].tag}</span></button></li>`).join('') || '<li style="padding:10px;color:var(--muted);font-size:13px">찾는 센서가 없어요</li>';
   $('listSel').innerHTML = SENSORS.map(s => `<option value="${s.n}"${s === cur ? ' selected' : ''}>${pad2(s.n)} · ${esc(s.name)} (${esc(s.model)})</option>`).join('');
 }
 
@@ -470,6 +529,25 @@ function hl(src) {
     return code + (com ? `<span class="c">${esc(com)}</span>` : '');
   }).join('\n');
 }
+function buildHtml() {
+  const s = cur, st = CIRC.steps[bstep], pr = prog(s.n), n = CIRC.steps.length;
+  const its = CIRC.items.filter(i => i.step === bstep);
+  const cat = /단계$/.test(st.kicker) ? (st.key === 'module' ? '부품 꽂기' : st.key === 'base' ? '전원' : '배선') : st.kicker;
+  let h = `<div class="kick">${bstep + 1}/${n} 단계 · ${esc(cat)}${board === 'uno' ? ' · 예시 회로는 ESP32 기준' : ''}</div><h3 style="margin-top:4px;font-size:18px;color:var(--ink);text-transform:none;letter-spacing:.2px">${esc(st.title)}</h3><p class="desc">${esc(st.desc)}</p>`;
+  if (st.bom) h += `<table class="bom"><thead><tr><th>부품</th><th>수량</th><th>메모</th></tr></thead><tbody>${st.bom.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join('')}</tbody></table>`;
+  if (st.key === 'module') h += `<ul class="wl">${CIRC.pins.slice().sort((a, b) => b.row - a.row).map(p => `<li><span class="sw" style="background:#d6b04d"></span><span><b>${esc((p.grp ? p.grp + ' ' : '') + p.mod.replace(/ \(.+\)/, '').replace(/^[AB]: /, ''))}</b> → ${esc(holeNice(p.hole))}${p.net === null ? ' <span class="kind">(연결 안 함)</span>' : ''}</span></li>`).join('')}</ul>`;
+  else if (its.length && st.key !== 'module') h += `<ul class="wl">${its.map(it => it.t === 'wire'
+    ? `<li><span class="sw" style="background:${COLORS[it.net]}"></span><span><b>${esc(COLOR_KO[it.net])} 선</b>${it.pin ? ` · ${esc(it.pin.replace(/ \(.+\)/, ''))} 핀` : ''}<br>${esc(holeNice(it.from))} → ${esc(holeNice(it.to))}</span></li>`
+    : `<li><span class="sw" style="background:#e2cf9f"></span><span><b>저항 ${esc(it.val === '10k' ? '10kΩ' : it.val + 'Ω')}</b> · ${esc(it.role)}<br>${esc(holeNice(it.a))} ↔ ${esc(holeNice(it.b))}</span></li>`).join('')}</ul>`;
+  if (st.checks) h += `<ul class="checks" style="margin-top:8px">${st.checks.map((c, i) => `<li><label><input type="checkbox" data-ck="${i}"${pr.checks[i] ? ' checked' : ''}><span>${esc(c)}</span></label></li>`).join('')}</ul>`;
+  if (st.key === 'code') h += `<p class="desc">보드: ESP32 Dev Module · 시리얼 115200 baud${s.libs ? ` · 라이브러리: ${s.libs.map(l => esc(l.q)).join(', ')}` : ' · 라이브러리 필요 없음'}</p><button type="button" class="ybtn sm" id="goCode">코드 탭 열기</button>`;
+  if (st.key === 'run') h += `<p class="desc">가상 실험에서 <b>회로로 보기</b>를 누르면 이 회로 위에 신호가 실시간으로 표시돼요 (HIGH인 선이 빛남, 아날로그 선 끝에 전압).</p><button type="button" class="ybtn" id="goRun">⚡ 가상 실험 시작</button>`;
+  if (CIRC.conflict.length && st.key === 'prep') h += `<div class="note">이 회로의 ${CIRC.conflict.join(', ')}은(는) BMS 보드도 쓰는 핀이에요.</div>`;
+  if (st.tips && st.tips.length) h += `<h3>도움말</h3><ul class="tips">${st.tips.map((t, i) => `<li class="${(st.warn || []).includes(i) ? 'warn' : ''}">${esc(t)}</li>`).join('')}</ul>`;
+  h += `<div class="stnav"><button type="button" class="ghostbtn" id="bPrev"${bstep === 0 ? ' disabled' : ''}>← 이전</button>${bstep < n - 1 ? `<button type="button" class="ybtn sm" id="bNext">다음: ${esc(CIRC.steps[bstep + 1].short.replace(/^@/, ''))} →</button>` : ''}</div>
+  <p class="desc" style="margin-top:10px;font-size:12px;color:var(--faint)">키보드 <span class="kbd">←</span><span class="kbd">→</span> 로 단계를 넘길 수 있어요. 진행 상황은 이 브라우저에 저장돼요.</p>`;
+  return h;
+}
 function infoHtml() {
   const s = cur;
   return `<h3>어떤 센서인가요</h3><p class="desc">${esc(s.desc)}</p>
@@ -507,6 +585,11 @@ function wireHtml() {
   ${s.pins.map(p => `<tr><td class="pin">${esc(p.mod)}</td><td class="pin ${B.esp ? '' : 'cur'}">${esc(p.uno)}</td><td class="pin ${B.esp ? 'cur' : ''}">${esc(p.esp)}</td><td>${esc(p.note || '')}</td></tr>`).join('')}
   </tbody></table>
   <div class="note"><b>ESP32 핀을 고른 기준</b><br>BMS 보드가 이미 쓰는 GPIO ${USED_BY_BMS}와 겹치지 않게, 비어 있는 GPIO36(SVP)·39(SVN)·32(아날로그 ADC1)와 21·22·5(디지털)를 썼어요. ${s.key === 'ds18b20' ? '이 센서는 BMS 온도센서와 같은 GPIO4 1-Wire 버스에 함께 달 수 있어요.' : ''}모듈 전원은 ESP32 입력이 3.3V를 넘지 않도록 3V3에 연결하는 것이 기본이에요.</div>
+  <h3>브레드보드 배선표 <small style="text-transform:none;font-family:var(--f-ui);letter-spacing:0;color:var(--faint)">예시 ESP32 회로</small></h3>
+  <table><thead><tr><th>단계</th><th>선·부품</th><th>시작 → 끝</th></tr></thead><tbody>
+  <tr><td class="pin">2</td><td>모듈</td><td>위 보드 E${CIRC.rmax}~E${CIRC.rmin}</td></tr>
+  ${CIRC.items.filter(i => i.t !== 'module').map(it => `<tr><td class="pin">${it.step + 1}</td><td>${it.t === 'wire' ? `<span class="sw" style="display:inline-block;width:14px;height:5px;border-radius:2px;background:${COLORS[it.net]};vertical-align:middle;margin-right:4px"></span>${esc(COLOR_KO[it.net])}` : `저항 ${esc(it.val === '10k' ? '10kΩ' : it.val + 'Ω')}`}</td><td>${esc(holeNice(it.t === 'wire' ? it.from : it.a))} → ${esc(holeNice(it.t === 'wire' ? it.to : it.b))}</td></tr>`).join('')}
+  </tbody></table>
   <h3>라이브러리</h3>${s.libs ? `<ul class="tips">${s.libs.map(l => `<li><b>${esc(l.name)}</b> — 라이브러리 매니저에서 <span class="hole">${esc(l.q)}</span> 검색 후 설치</li>`).join('')}</ul>` : '<p class="desc">별도 라이브러리 불필요 (기본 함수만 사용)</p>'}
   <h3>연결 순서</h3><ol class="nums"><li>USB를 뺀 상태에서 연결합니다.</li><li>GND(-)를 먼저, 그다음 전원(+)을 연결합니다.</li><li>신호선을 표의 ${B.name} 핀에 연결합니다.</li><li>코드 탭의 예제를 올리고 시리얼 모니터를 ${B.baud} baud로 엽니다.</li></ol>`;
 }
@@ -542,7 +625,7 @@ function renderPanel() {
   $('pkick').textContent = `${CATS[s.cat].name} · ${s.model} · ${s.n}/40`;
   $('ptitle').textContent = s.name;
   document.querySelectorAll('#ptabs [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-  $('pbody').innerHTML = tab === 'info' ? infoHtml() : tab === 'wire' ? wireHtml() : tab === 'code' ? codeHtml() : bmsHtml();
+  $('pbody').innerHTML = tab === 'build' ? buildHtml() : tab === 'info' ? infoHtml() : tab === 'wire' ? wireHtml() : tab === 'code' ? codeHtml() : bmsHtml();
   $('pbody').scrollTop = 0;
   updateBmsLive();
 }
@@ -564,11 +647,12 @@ function selectSensor(n, opts = {}) {
   const s = SENSORS.find(x => x.n === +n); if (!s) return;
   if (SRC.real && s !== cur) disconnect();
   cur = s; R = newRun(s); LOG.length = 0; SER.length = 0; serDirty = true;
+  CIRC = makeCircuit(s); bstep = clamp(prog(s.n).at || 0, 0, CIRC.steps.length - 1);
   SET.fault = ''; $('fault').value = '';
   if (s.isOut && !SET.auto) SET.auto = true; // 출력 모듈은 데모로 시작
   if (!s.isOut && opts.fromUser) SET.auto = false;
   $('auto').setAttribute('aria-checked', String(SET.auto));
-  $('modsvg').innerHTML = moduleSvg(s);
+  renderViz(); if (mode === 'build') renderStrip();
   $('bName').textContent = `${pad2(s.n)} · ${s.name}`;
   $('bSub').textContent = `${s.model} · ${CATS[s.cat].name} · ${BOARDS[board].name} 기준 · 조작하면 가상 데이터가 만들어져요`;
   renderList(); renderCtrls(); renderLegend(); renderPanel(); renderTiles(); renderPins(); renderStatus();
@@ -699,7 +783,15 @@ $('csv').addEventListener('click', saveCsv);
 $('gen10').addEventListener('click', gen10);
 $('conn').addEventListener('click', () => { if (SRC.real) disconnect(); else connect(); });
 $('ptabs').addEventListener('click', ev => { const b = ev.target.closest('[data-tab]'); if (!b) return; tab = b.dataset.tab; renderPanel(); });
-$('ptabs').addEventListener('keydown', ev => { if (!['ArrowLeft', 'ArrowRight'].includes(ev.key)) return; const t = ['info', 'wire', 'code', 'bms']; tab = t[(t.indexOf(tab) + (ev.key === 'ArrowRight' ? 1 : 3)) % 4]; renderPanel(); document.querySelector(`#ptabs [data-tab="${tab}"]`).focus(); });
+$('ptabs').addEventListener('keydown', ev => { if (!['ArrowLeft', 'ArrowRight'].includes(ev.key)) return; const t = ['build', 'info', 'wire', 'code', 'bms']; tab = t[(t.indexOf(tab) + (ev.key === 'ArrowRight' ? 1 : 4)) % 5]; renderPanel(); document.querySelector(`#ptabs [data-tab="${tab}"]`).focus(); });
+
+// 조립 따라하기
+$('modeSeg').addEventListener('click', ev => { const b = ev.target.closest('[data-mode]'); if (b) setMode(b.dataset.mode); });
+$('stPrev').addEventListener('click', () => goStep(bstep - 1));
+$('stNext').addEventListener('click', () => goStep(bstep + 1));
+$('strip').addEventListener('click', ev => { const b = ev.target.closest('[data-st]'); if (b) goStep(+b.dataset.st); });
+$('circsvg').addEventListener('click', ev => { const g = ev.target.closest('[data-step]'); if (g) goStep(+g.dataset.step); });
+$('vizToggle').addEventListener('click', () => { vizCircuit = !vizCircuit; renderViz(); });
 
 // 조작부 (위임)
 const ctrlsEl = $('ctrls');
@@ -728,13 +820,18 @@ $('pbody').addEventListener('click', async ev => {
   if (t.id === 'copyCode') { try { await navigator.clipboard.writeText(cur.code(cur, BOARDS[codeBoard || board])); toast('코드를 복사했어요'); } catch (e) { toast('복사하지 못했어요. 코드를 직접 선택해 주세요.'); } return; }
   if (t.id === 'dlCode') { const B = BOARDS[codeBoard || board]; download(fileName(cur, B), cur.code(cur, B), 'text/plain'); toast('Arduino IDE는 .ino와 같은 이름의 폴더가 필요해요 — 열 때 자동으로 만들어 줘요', 4000); return; }
   if (t.id === 'tripReset') { if (!R.trip) { toast('지금은 차단 상태가 아니에요'); return; } if (R.lv === 3) { toast('위험 조건이 남아 있어 리셋할 수 없어요'); return; } R.trip = false; toast('TRIP 리셋 — 부하를 다시 연결했어요'); updateBmsLive(); return; }
+  if (t.id === 'bPrev') { goStep(bstep - 1); return; }
+  if (t.id === 'bNext') { goStep(bstep + 1); return; }
+  if (t.id === 'goCode') { tab = 'code'; codeBoard = 'esp32'; renderPanel(); return; }
+  if (t.id === 'goRun') { const pr = prog(cur.n); pr.done = true; saveProg(); renderList(); vizCircuit = true; setMode('run'); toast('조립 완료! 회로 위에 실시간 신호가 표시돼요'); return; }
   if (t.id === 'thReset') { delete TH[cur.key]; renderPanel(); toast('판정 기준을 처음 값으로 되돌렸어요'); }
 });
-$('pbody').addEventListener('change', ev => { const t = ev.target; if (t.dataset.rule == null) return; const th = thOf(cur, +t.dataset.rule); th[+t.dataset.lvl] = t.value === '' ? null : +t.value; });
+$('pbody').addEventListener('change', ev => { const t = ev.target; if (t.dataset.ck != null) { prog(cur.n).checks[t.dataset.ck] = t.checked; saveProg(); return; } if (t.dataset.rule == null) return; const th = thOf(cur, +t.dataset.rule); th[+t.dataset.lvl] = t.value === '' ? null : +t.value; });
 
 // 키보드: ←/→ 이전·다음 센서
 document.addEventListener('keydown', ev => {
   if (ev.target.closest('input, select, textarea, [contenteditable], .pad')) return;
+  if ((ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') && mode === 'build') { goStep(bstep + (ev.key === 'ArrowRight' ? 1 : -1)); return; }
   if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { const i = SENSORS.indexOf(cur) + (ev.key === 'ArrowRight' ? 1 : -1); if (SENSORS[i]) selectSensor(SENSORS[i].n, { fromUser: true }); }
 });
 window.addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (n && n !== cur.n) selectSensor(n, { keepHash: true }); });
@@ -765,9 +862,13 @@ function frame(now) {
   $('sound').setAttribute('aria-pressed', String(PREF.sound));
   document.querySelectorAll('#boardSeg [data-board]').forEach(x => x.setAttribute('aria-checked', String(x.dataset.board === board)));
   $('baudT').textContent = `${BOARDS[board].baud} baud`;
+  try { const m = sessionStorage.getItem('bms-sensor-mode'); if (m === 'run' || m === 'build') mode = m; } catch (e) {}
+  document.body.dataset.mode = mode; document.querySelectorAll('#modeSeg [data-mode]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.mode === mode)));
+  if (mode === 'build') tab = 'build';
   const n = parseInt(location.hash.slice(1), 10);
   selectSensor(SENSORS.some(s => s.n === n) ? n : 1, { keepHash: !!n });
   renderConn();
   new ResizeObserver(() => drawChart()).observe($('chart'));
   requestAnimationFrame(t => { last = t; frame(t); });
 })();
+window.__sensorsDebug = { makeCircuit: s => makeCircuit(s) };   // 회로 검사용
