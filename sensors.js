@@ -3,7 +3,7 @@
    실제 보드: Web Serial로 예제 코드의 '이름:값' 줄을 읽어 같은 화면에 표시 */
 import { SENSORS, BOARDS, CATS, IR_KEYS, irName } from './sensors-data.js';
 import { modGeom, moduleSvg, updateModuleSvg } from './sensors-draw.js';
-import { buildCircuit, circuitSvg, VIEWBOX, holeNice, COLORS, COLOR_KO } from './sensors-circuit.js';
+import { exampleCircuit, exampleSvg, VIEWBOX, holeNice, COLORS, COLOR_KO, BASE, epText, pinLabel, laneName, RES_KO, BAND_KO } from './sensors-circuit.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -193,21 +193,17 @@ function updateModule(o, last) {
   }
 }
 const activeSvg = () => mode === 'build' ? $('circsvg') : $('modsvg');
-function makeCircuit(s) {
-  const pins = []; moduleSvg(s, { circuit: true, leg: 116, pins });
-  const o = s.sim(initEnv(s), {}, { B: BOARDS.esp32, t: 0, dt: DT, noise: 0 }) || {};
-  const analog = new Set(Object.entries(o.ch || {}).filter(([, c]) => c.k === 'a').map(([k]) => k));
-  return buildCircuit(s, analog, pins);
-}
+function makeCircuit(s) { return exampleCircuit(s); }   // 보드 밖 모듈 + 직각 배선 예시 회로
 function renderViz() {
   const s = cur, m = $('modsvg');
   if (mode === 'build') {
     m.innerHTML = '';
-    $('circsvg').innerHTML = circuitSvg(s, CIRC, { step: bstep, build: true, moduleSvg });
+    $('circsvg').setAttribute('viewBox', VIEWBOX);
+    $('circsvg').innerHTML = exampleSvg(CIRC, { step: bstep, build: true });
     return;
   }
   $('circsvg').innerHTML = '';
-  if (vizCircuit) { m.setAttribute('viewBox', VIEWBOX); m.classList.add('circ'); m.innerHTML = circuitSvg(s, CIRC, { step: Infinity, build: false, moduleSvg }); }
+  if (vizCircuit) { m.setAttribute('viewBox', VIEWBOX); m.classList.add('circ'); m.innerHTML = exampleSvg(CIRC, {}); }
   else { m.setAttribute('viewBox', '0 0 340 210'); m.classList.remove('circ'); m.innerHTML = moduleSvg(s); }
   $('bgrid').classList.toggle('wide', vizCircuit);
   $('vizT').textContent = vizCircuit ? `예시 ESP32 회로 · 실시간 신호${board === 'uno' ? ' (값은 Uno 시뮬레이션)' : ''}` : '모듈';
@@ -404,14 +400,14 @@ function hl(src) {
 }
 function buildHtml() {
   const s = cur, st = CIRC.steps[bstep], pr = prog(s.n), n = CIRC.steps.length;
-  const its = CIRC.items.filter(i => i.step === bstep);
+  const its = [...(CIRC.steps[bstep].key === 'base' ? BASE : []), ...CIRC.items.filter(i => i.step === bstep && i.t !== 'module')];
   const cat = /단계$/.test(st.kicker) ? (st.key === 'module' ? '부품 꽂기' : st.key === 'base' ? '전원' : '배선') : st.kicker;
   let h = `<div class="kick">${bstep + 1}/${n} 단계 · ${esc(cat)}${board === 'uno' ? ' · 예시 회로는 ESP32 기준' : ''}</div><h3 style="margin-top:4px;font-size:18px;color:var(--ink);text-transform:none;letter-spacing:.2px">${esc(st.title)}</h3><p class="desc">${esc(st.desc)}</p>`;
   if (st.bom) h += `<table class="bom"><thead><tr><th>부품</th><th>수량</th><th>메모</th></tr></thead><tbody>${st.bom.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join('')}</tbody></table>`;
-  if (st.key === 'module') h += `<ul class="wl">${CIRC.pins.slice().sort((a, b) => b.row - a.row).map(p => `<li><span class="sw" style="background:#d6b04d"></span><span><b>${esc((p.grp ? p.grp + ' ' : '') + p.mod.replace(/ \(.+\)/, '').replace(/^[AB]: /, ''))}</b> → ${esc(holeNice(p.hole))}${p.net === null ? ' <span class="kind">(연결 안 함)</span>' : ''}</span></li>`).join('')}</ul>`;
+  if (st.key === 'module') h += `<ul class="wl">${CIRC.pins.map((p, i) => [p, i]).sort((a, b) => b[0].row - a[0].row).map(([p, i]) => `<li><span class="sw" style="background:#d6b04d"></span><span><b>${esc(pinLabel(CIRC.inst, i))}</b> → ${p.row}행 앞${p.net === null ? ' <span class="kind">(연결 안 함)</span>' : ''}</span></li>`).join('')}</ul>`;
   else if (its.length && st.key !== 'module') h += `<ul class="wl">${its.map(it => it.t === 'wire'
-    ? `<li><span class="sw" style="background:${COLORS[it.net]}"></span><span><b>${esc(COLOR_KO[it.net])} 선</b>${it.pin ? ` · ${esc(it.pin.replace(/ \(.+\)/, ''))} 핀` : ''}<br>${esc(holeNice(it.from))} → ${esc(holeNice(it.to))}</span></li>`
-    : `<li><span class="sw" style="background:#e2cf9f"></span><span><b>저항 ${esc(it.val === '10k' ? '10kΩ' : it.val + 'Ω')}</b> · ${esc(it.role)}<br>${esc(holeNice(it.a))} ↔ ${esc(holeNice(it.b))}</span></li>`).join('')}</ul>`;
+    ? `<li><span class="sw" style="background:${COLORS[it.net]}"></span><span><b>${esc(COLOR_KO[it.net])} 선</b>${it.base ? ` · ${esc(it.label)}` : ''}<br>${esc(epText(it.a, CIRC.inst))} → ${esc(epText(it.b, CIRC.inst))}</span></li>`
+    : `<li><span class="sw" style="background:#e2cf9f"></span><span><b>저항 ${esc(RES_KO[it.val])}</b> (${esc(BAND_KO[it.val])}) · ${esc(it.role)}<br>${esc(holeNice(it.a))} ↔ ${esc(holeNice(it.b))}</span></li>`).join('')}</ul>`;
   if (st.checks) h += `<ul class="checks" style="margin-top:8px">${st.checks.map((c, i) => `<li><label><input type="checkbox" data-ck="${i}"${pr.checks[i] ? ' checked' : ''}><span>${esc(c)}</span></label></li>`).join('')}</ul>`;
   if (st.key === 'code') h += `<p class="desc">보드: ESP32 Dev Module · 시리얼 115200 baud${s.libs ? ` · 라이브러리: ${s.libs.map(l => esc(l.q)).join(', ')}` : ' · 라이브러리 필요 없음'}</p><button type="button" class="ybtn sm" id="goCode">코드 탭 열기</button>`;
   if (st.key === 'run') h += `<p class="desc">가상 실험에서 <b>회로로 보기</b>를 누르면 이 회로 위에 신호가 실시간으로 표시돼요 (HIGH인 선이 빛남, 아날로그 선 끝에 전압).</p><button type="button" class="ybtn" id="goRun">⚡ 가상 실험 시작</button>`;
@@ -457,11 +453,11 @@ function wireHtml() {
   <table><thead><tr><th>모듈 핀</th><th class="${B.esp ? '' : 'cur'}">Uno</th><th class="${B.esp ? 'cur' : ''}">ESP32</th><th>비고</th></tr></thead><tbody>
   ${s.pins.map(p => `<tr><td class="pin">${esc(p.mod)}</td><td class="pin ${B.esp ? '' : 'cur'}">${esc(p.uno)}</td><td class="pin ${B.esp ? 'cur' : ''}">${esc(p.esp)}</td><td>${esc(p.note || '')}</td></tr>`).join('')}
   </tbody></table>
-  <div class="note"><b>ESP32 핀을 고른 기준</b><br>BMS 보드가 이미 쓰는 GPIO ${USED_BY_BMS}와 겹치지 않게, 비어 있는 GPIO36(SVP)·39(SVN)·32(아날로그 ADC1)와 21·22·5(디지털)를 썼어요. ${s.key === 'ds18b20' ? '이 센서는 BMS 온도센서와 같은 GPIO4 1-Wire 버스에 함께 달 수 있어요.' : ''}모듈 전원은 ESP32 입력이 3.3V를 넘지 않도록 3V3에 연결하는 것이 기본이에요.</div>
+  <div class="note"><b>ESP32 핀을 고른 기준</b><br>BMS 보드가 이미 쓰는 GPIO ${USED_BY_BMS}와 겹치지 않게, 비어 있는 GPIO36(SVP)·39(SVN)·32(아날로그 ADC1)와 21·22·5(디지털)를 썼어요. 예시 회로의 모듈은 보드 밖에 두고 암-수 점퍼로 연결하며, 선은 가로·세로로만 정리했어요. ${s.key === 'ds18b20' ? '이 센서는 BMS 온도센서와 같은 GPIO4 1-Wire 버스에 함께 달 수 있어요.' : ''}모듈 전원은 ESP32 입력이 3.3V를 넘지 않도록 3V3에 연결하는 것이 기본이에요.</div>
   <h3>브레드보드 배선표 <small style="text-transform:none;font-family:var(--f-ui);letter-spacing:0;color:var(--faint)">예시 ESP32 회로</small></h3>
   <table><thead><tr><th>단계</th><th>선·부품</th><th>시작 → 끝</th></tr></thead><tbody>
-  <tr><td class="pin">2</td><td>모듈</td><td>위 보드 E${CIRC.rmax}~E${CIRC.rmin}</td></tr>
-  ${CIRC.items.filter(i => i.t !== 'module').map(it => `<tr><td class="pin">${it.step + 1}</td><td>${it.t === 'wire' ? `<span class="sw" style="display:inline-block;width:14px;height:5px;border-radius:2px;background:${COLORS[it.net]};vertical-align:middle;margin-right:4px"></span>${esc(COLOR_KO[it.net])}` : `저항 ${esc(it.val === '10k' ? '10kΩ' : it.val + 'Ω')}`}</td><td>${esc(holeNice(it.t === 'wire' ? it.from : it.a))} → ${esc(holeNice(it.t === 'wire' ? it.to : it.b))}</td></tr>`).join('')}
+  <tr><td class="pin">${CIRC.steps.findIndex(x => x.key === 'module') + 1}</td><td>모듈</td><td>${esc(laneName(CIRC.lane))} · ${Math.max(...CIRC.pins.map(p => p.row))}~${Math.min(...CIRC.pins.map(p => p.row))}행 앞 (보드에 꽂지 않음)</td></tr>
+  ${[...BASE, ...CIRC.items.filter(i => i.t !== 'module')].map(it => `<tr><td class="pin">${CIRC.stepOf(it) + 1}</td><td>${it.t === 'wire' ? `<span class="sw" style="display:inline-block;width:14px;height:5px;border-radius:2px;background:${COLORS[it.net]};vertical-align:middle;margin-right:4px"></span>${esc(COLOR_KO[it.net])}` : `저항 ${esc(RES_KO[it.val])}`}</td><td>${esc(it.t === 'wire' ? epText(it.a, CIRC.inst) : holeNice(it.a))} → ${esc(it.t === 'wire' ? epText(it.b, CIRC.inst) : holeNice(it.b))}</td></tr>`).join('')}
   </tbody></table>
   <h3>라이브러리</h3>${s.libs ? `<ul class="tips">${s.libs.map(l => `<li><b>${esc(l.name)}</b> — 라이브러리 매니저에서 <span class="hole">${esc(l.q)}</span> 검색 후 설치</li>`).join('')}</ul>` : '<p class="desc">별도 라이브러리 불필요 (기본 함수만 사용)</p>'}
   <h3>연결 순서</h3><ol class="nums"><li>USB를 뺀 상태에서 연결합니다.</li><li>GND(-)를 먼저, 그다음 전원(+)을 연결합니다.</li><li>신호선을 표의 ${B.name} 핀에 연결합니다.</li><li>코드 탭의 예제를 올리고 시리얼 모니터를 ${B.baud} baud로 엽니다.</li></ol>`;

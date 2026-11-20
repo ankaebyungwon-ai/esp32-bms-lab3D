@@ -2,8 +2,8 @@
    흐름: 센서 추가 → ESP32 핀 배정(아날로그는 ADC1, 출력·풀업은 입출력 핀) → 브레드보드 자리 배정(위 보드 3V3 / 아래 보드 5V)
         → 점퍼선·저항 생성 → 센서마다 sim → read → 판정 → 통합 판정(가장 나쁜 단계) → 출력 모듈(릴레이·LED·부저)이 따라 움직임 */
 import { SENSORS, BOARDS, CATS, IR_KEYS, irName } from './sensors-data.js';
-import { moduleSvg, modGeom, updateModuleSvg } from './sensors-draw.js';
-import { COLX, COLORS, COLOR_KO, NET_KO, parseHole, holeNice, xRow, yCol, boardSvg, espSvg, wirePath, resSvg, espHole, netOfPin, physPins, RES_KO, BAND_KO, MOD_K } from './sensors-circuit.js';
+import { updateModuleSvg } from './sensors-draw.js';
+import { COLORS, COLOR_KO, holeNice, analyze, layoutAll, buildItems, svgFor, BASE, epText, laneName, RES_KO, BAND_KO, RES_STOCK, BMS_RES_USED, BMS_GPIO, ADC1, IN_ONLY, ALL_GPIO, NEED_KO } from './sensors-circuit.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -16,24 +16,9 @@ const DT = 0.05, WIN = 60, MOD_LEG = 116, LOG_MAX = 36000;
 const LV = [{ t: '정상', c: 'var(--lv0)' }, { t: '주의', c: 'var(--lv1)' }, { t: '경고', c: 'var(--lv2)' }, { t: '위험', c: 'var(--lv3)' }];
 const SERIES_COLORS = ['#1e3a5c', '#f6c047', '#1f9a78', '#d62f2f'];
 
-// ───────── ESP32 핀 ─────────
-const ADC1 = ['GPIO36', 'GPIO39', 'GPIO34', 'GPIO35', 'GPIO32', 'GPIO33'];          // Wi-Fi를 켜도 아날로그를 읽을 수 있는 핀
-const IN_ONLY = new Set(['GPIO34', 'GPIO35', 'GPIO36', 'GPIO39']);                 // 입력 전용 (내부 풀업 없음)
-const IO = ['GPIO21', 'GPIO22', 'GPIO5', 'GPIO23', 'GPIO19', 'GPIO18', 'GPIO17', 'GPIO16', 'GPIO4', 'GPIO13', 'GPIO14', 'GPIO27', 'GPIO26', 'GPIO25', 'GPIO15', 'GPIO32', 'GPIO33'];
-const ALL_GPIO = ['GPIO36', 'GPIO39', 'GPIO34', 'GPIO35', ...IO];
-const BMS_ROLE = { GPIO34: '5V 감시', GPIO35: '전류 션트', GPIO4: 'DS18B20', GPIO26: '릴레이', GPIO25: '부저', GPIO27: 'RGB R', GPIO14: 'RGB G', GPIO33: 'RGB B', GPIO13: '버튼', GPIO18: 'TFT SCL', GPIO23: 'TFT SDA', GPIO17: 'TFT CS', GPIO16: 'TFT DC', GPIO19: 'TFT RST' };
-const NEED_KO = { ana: '아날로그 입력', in: '디지털 입력', out: '출력', io: '입출력(풀업·양방향)' };
+// ───────── ESP32 핀·예시 세트 ─────────
+const BMS_ROLE = BMS_GPIO;
 const NEED_TAG = { ana: 'ana', in: 'in', out: 'out', io: 'io' };
-
-// ───────── 브레드보드 자리 (두 줄) ─────────
-// top: 위 보드 E열에 꽂고 몸체는 레일 바깥 (3V3 센서) / bot: 아래 보드 F열에 꽂고 몸체는 아래 (5V 센서·출력 모듈)
-const LANES = {
-  top: { name: '위 보드', board: 'R', pin: 'E', pwr: 'D', res: ['D', 'C', 'B'], sig: 'B', sig2: 'A', rails: { gnd: 'R-', v3: 'R+', v5: 'L+' }, lo: 2, hi: 62 },
-  bot: { name: '아래 보드', board: 'L', pin: 'F', pwr: 'G', res: ['G', 'H', 'I'], sig: 'I', sig2: 'J', rails: { gnd: 'L-', v3: 'L+', v5: 'L+' }, lo: 8, hi: 62 },
-};
-const EXTRA_ROWS = { ultrasonic: 5, rgbsmd: 4, dual3: 3, dual5: 3 };
-const BASE = [['b5v', 'LA1', 'L+@3', 'v5'], ['bg1', 'LA6', 'L-@6', 'gnd'], ['b3v', 'LA19', 'R+@23', 'v3'], ['bg2', 'RJ13', 'R-@13', 'gnd']];
-
 const PRESETS = [
   { name: '🔥 화재 감시 BMS', list: [4, 27, 20, 17, 9], desc: '온도·불꽃이 위험하면 릴레이 차단 + 빨간 LED + 경보음' },
   { name: '🚪 문·충격 감시', list: [22, 31, 18, 30], desc: '케이스 문 열림·충격·기울어짐을 두 색 LED로 표시' },
@@ -68,125 +53,22 @@ function newInst(s, opts = {}) {
   return { id: 'i' + (++uid), s, e: initEnv(s), st: {}, t0: T, nextRead: T, o: { ch: {} }, r: {}, ev: null, last: {}, lv: 0, msg: '', hits: [], flo: {}, stuck: {}, filt: {}, unf: {}, chart: [], fault: '', linked: opts.linked ?? hasBmsCtrl(s), lastLine: '', gpio: {}, lane: null, start: 0, items: [], pins: [] };
 }
 
-// ───────── 센서 분석 (핀 종류·모듈 크기) ─────────
-function analyze(s) {
-  if (CACHE[s.n]) return CACHE[s.n];
-  const code = s.code(s, B);
-  const cst = {}; for (const m of code.matchAll(/const int (\w+) = (\w+);/g)) cst[m[1]] = m[2];
-  const setOf = re => new Set([...code.matchAll(re)].map(m => cst[m[1]]).filter(Boolean));
-  const pull = setOf(/pinMode\((\w+), INPUT_PULLUP\)/g), outs = setOf(/pinMode\((\w+), OUTPUT\)/g);
-  for (const m of code.matchAll(/IrSender\.begin\((\w+)\)/g)) outs.add(cst[m[1]]);
-  const o = s.sim(initEnv(s), {}, { B, t: 0, dt: DT, noise: 0 }) || {};
-  const analog = new Set(Object.entries(o.ch || {}).filter(([, c]) => c.k === 'a').map(([k]) => k));
-  const pins = physPins(s);
-  const need = {};
-  pins.forEach(p => { if (!p.sig) return; const num = p.esp.replace('GPIO', ''); need[p.sig] = analog.has(p.sig) ? 'ana' : outs.has(num) ? 'out' : (pull.has(num) || ['ds18b20', 'dht11'].includes(s.key)) ? 'io' : 'in'; });
-  const lay = legsUp => { const ps = []; moduleSvg(s, { circuit: true, leg: MOD_LEG, legsUp, pins: ps, noScene: true }); return ps; };
-  const G = modGeom(s);
-  return CACHE[s.n] = { analog, need, pins, layTop: lay(false), layBot: lay(true), bodyW: G.two ? G.w * 2 + 40 : G.w, needs5V: pins.some(p => p.esp && p.esp.startsWith('5V')) };
-}
-
-// ───────── 핀 배정 ─────────
-function poolFor(need) {
-  if (need === 'ana') return ADC1;
-  if (need === 'in') return [...IO.filter(g => !ADC1.includes(g)), 'GPIO34', 'GPIO35', 'GPIO39', 'GPIO36', 'GPIO32', 'GPIO33'];
-  return IO;   // 출력·풀업·양방향은 입력 전용 핀(34~39) 불가, 아날로그 핀(32·33)은 마지막에
-}
-const bmsBlocked = (s, g) => SET.avoidBms && BMS_ROLE[g] && !(s.key === 'ds18b20' && g === 'GPIO4');
-function allocPins(I, used) {
-  const a = analyze(I.s), res = {};
-  for (const p of a.pins) {
-    if (!p.sig) continue;
-    const pool = poolFor(a.need[p.sig]), ok = g => !used.has(g) && !bmsBlocked(I.s, g);
-    const g = pool.includes(p.esp) && ok(p.esp) ? p.esp : pool.find(ok);
-    if (!g) return { fail: `${p.mod.replace(/ \(.+\)/, '')} 핀에 쓸 ${NEED_KO[a.need[p.sig]]} 핀이 남지 않았어요` };
-    res[p.sig] = g; used.add(g);
-  }
-  return { res };
-}
-
-// ───────── 자리 배정 ─────────
-function footprint(I, lane) {
-  const a = analyze(I.s), lay = lane === 'bot' ? a.layBot : a.layTop;
-  const xs = lay.map(p => p.x), xmin = Math.min(...xs), span = (Math.max(...xs) - xmin) / 20;
-  const half = Math.max(0, (a.bodyW / 20 - span) / 2);
-  return { lay, xmin, leftOff: Math.ceil(half) + 1, rightOff: span + Math.max(Math.ceil(half), EXTRA_ROWS[I.s.key] || 0) + 1 };
-}
-const laneOrder = I => { const a = analyze(I.s); return a.needs5V || I.s.isOut ? ['bot', 'top'] : ['top']; };
-function layoutAll(list) { // 앞에서부터 차례로 핀과 자리를 정함 (먼저 꽂은 센서는 자리가 바뀌지 않음)
-  const used = new Set(), occ = { top: [], bot: [] };
-  for (const I of list) {
-    const pa = allocPins(I, used); if (pa.fail) return { fail: pa.fail, who: I };
-    I.gpio = pa.res; I.lane = null;
-    for (const lane of laneOrder(I)) {
-      const fp = footprint(I, lane), L = LANES[lane];
-      for (let start = L.hi - fp.leftOff; start - fp.rightOff >= L.lo; start--) {
-        const iv = [start - fp.rightOff, start + fp.leftOff];
-        if (occ[lane].some(([a, b]) => !(iv[1] < a || iv[0] > b))) continue;
-        occ[lane].push(iv); I.lane = lane; I.start = start; I.fp = fp; break;
-      }
-      if (I.lane) break;
-    }
-    if (!I.lane) return { fail: `브레드보드에 ${I.s.name}을(를) 꽂을 자리가 없어요`, who: I };
-  }
-  return { ok: true, used, occ };
-}
-
-// ───────── 배선 만들기 ─────────
-function buildItems(list) {
-  const rails = new Set(BASE.map(b => b[2]));
-  const freeRail = (rail, row) => { for (let d = 0; d < 40; d++) for (const r of [row + d, row - d]) { if (r < 1 || r > 63) continue; const h = `${rail}@${r}`; if (!rails.has(h)) { rails.add(h); return h; } } return `${rail}@${row}`; };
-  for (const I of list) {
-    const a = analyze(I.s), L = LANES[I.lane], s = I.s, bd = L.board, items = [];
-    const W = (id, from, to, net, x = {}) => items.push({ id: `${I.id}-${id}`, t: 'wire', from, to, net, ...x });
-    const RZ = (id, A, Bh, val, role) => items.push({ id: `${I.id}-${id}`, t: 'res', a: A, b: Bh, val, role });
-    const pins = a.pins.map((p, i) => ({ ...p, row: I.start - Math.round((I.fp.lay[i].x - I.fp.xmin) / 20) }));
-    pins.forEach(p => { p.hole = `${bd}${L.pin}${p.row}`; p.net = netOfPin(p); if (I.lane === 'bot' && p.net === 'v3') { p.net = 'v5'; p.conv = true; } });
-    const rmin = Math.min(...pins.map(p => p.row));
-    pins.forEach((p, i) => { if (p.net === 'gnd' || p.net === 'v3' || p.net === 'v5') W('p' + i, `${bd}${L.pwr}${p.row}`, freeRail(L.rails[p.net], p.row), p.net, { pin: p.mod }); });
-    const colorPins = ['rgbsmd', 'dual3', 'dual5'].includes(s.key) ? pins.filter(p => p.net === 'sig') : [];
-    pins.forEach((p, i) => {
-      if (p.net !== 'sig') return;
-      const g = I.gpio[p.sig], to = espHole(g), net = s.key === 'ds18b20' ? 'ow' : a.analog.has(p.sig) ? 'ana' : 'dig';
-      if (s.key === 'ultrasonic' && p.sig === 'ECHO') {
-        const n = rmin - 2, gr = rmin - 5;
-        RZ('r1', `${bd}${L.res[2]}${p.row}`, `${bd}${L.res[2]}${n}`, '10k', 'Echo 분배기 위쪽'); RZ('r2', `${bd}${L.res[1]}${n}`, `${bd}${L.res[1]}${gr}`, '10k', 'Echo 분배기 아래쪽');
-        W('eg', `${bd}${L.res[0]}${gr}`, freeRail(L.rails.gnd, gr), 'gnd'); W('s' + i, `${bd}${L.sig2}${n}`, to, net, { sig: p.sig });
-      } else if (colorPins.includes(p)) {
-        const j = colorPins.indexOf(p), n = rmin - 2 - j, col = L.res[j];
-        RZ('c' + i, `${bd}${col}${p.row}`, `${bd}${col}${n}`, '220', `${p.mod} 전류 제한`); W('s' + i, `${bd}${L.sig2}${n}`, to, net, { sig: p.sig });
-      } else W('s' + i, `${bd}${L.sig}${p.row}`, to, net, { sig: p.sig });
-    });
-    I.items = items; I.pins = pins;
-  }
-}
+// ───────── 회로 (공용 엔진: 핀·자리·저항 배정 → 직각 배선) ─────────
+let LAY = { resUsed: { '10k': 0, '220': 0, '330': 0 } };
+const layOpts = () => ({ avoidBms: SET.avoidBms, bmsRes: SET.avoidBms });
+function layoutAllI(list) { const r = layoutAll(list, layOpts()); if (r.ok) LAY = r; return r; }
 function rebuild(opts = {}) {
-  const res = layoutAll(INST);
+  const res = layoutAllI(INST);
   if (res.fail) return res;
   buildItems(INST); renderCircuit(); renderList(); renderCards(); renderPanel(); save();
   if (!opts.quiet) renderStatus();
   return res;
 }
-
-// ───────── 회로 그림 ─────────
 function renderCircuit() {
-  const used = new Set(INST.flatMap(I => Object.values(I.gpio)));
-  const defs = `<defs><pattern id="hp" width="10" height="10" patternUnits="userSpaceOnUse" x="${xRow(63) - 5}" y="0"><rect x="3.2" y="3.2" width="3.6" height="3.6" rx=".6" fill="#4a4f5a" opacity=".55"/></pattern><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
-  let mods = '', res = '', wires = '';
-  for (const I of INST) {
-    const lay = I.fp.lay, i0 = lay.findIndex(p => p.x === I.fp.xmin), up = I.lane === 'bot';
-    const tx = xRow(I.start) - MOD_K * lay[i0].x, ty = (up ? yCol(COLX.L.F) : yCol(COLX.R.E)) - MOD_K * lay[i0].y;
-    const rows = I.pins.map(p => p.row);
-    mods += `<g class="inst${I.id === selId ? ' sel' : ''}" data-inst="${I.id}"><title>${esc(I.s.name)} — ${LANES[I.lane].name} ${LANES[I.lane].pin}${Math.max(...rows)}~${LANES[I.lane].pin}${Math.min(...rows)} · 누르면 조작</title><g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${MOD_K})">${moduleSvg(I.s, { circuit: true, leg: MOD_LEG, legsUp: up, noScene: true, uid: I.id })}</g></g>`;
-    for (const it of I.items) {
-      if (it.t === 'res') res += `<g class="inst" data-inst="${I.id}"><title>${esc(RES_KO[it.val])} ${esc(it.role)}</title>${resSvg(it)}</g>`;
-      else { const A = parseHole(it.from), Bh = parseHole(it.to), c = COLORS[it.net]; wires += `<g class="wire${I.id === selId ? ' sel' : ''}" data-inst="${I.id}"${it.sig ? ` data-sig="${it.sig}"` : ''}><title>${esc(I.s.name)} · ${esc(COLOR_KO[it.net])} 선: ${esc(holeNice(it.from))} → ${esc(holeNice(it.to))}</title><path class="w" d="${wirePath(it.from, it.to)}" stroke="${c}" fill="none" stroke-width="3" stroke-linecap="round"/><circle cx="${A.x}" cy="${A.y}" r="2.6" fill="${c}" stroke="#fff" stroke-width=".8"/><circle cx="${Bh.x}" cy="${Bh.y}" r="2.6" fill="${c}" stroke="#fff" stroke-width=".8"/>${it.sig ? `<text class="vlab" x="${Bh.x}" y="${Bh.y + (Bh.board === 'L' ? 14 : -7)}" text-anchor="middle" font-size="8.5" font-family="JetBrains Mono" font-weight="700"></text>` : ''}</g>`; }
-    }
-  }
-  const base = BASE.map(([id, f, t, net]) => { const A = parseHole(f), Bh = parseHole(t); return `<g class="wire base"><title>기본 전원 배선: ${esc(holeNice(f))} → ${esc(holeNice(t))}</title><path class="w" d="${wirePath(f, t)}" stroke="${COLORS[net]}" fill="none" stroke-width="3" stroke-linecap="round" opacity=".8"/><circle cx="${A.x}" cy="${A.y}" r="2.4" fill="${COLORS[net]}"/><circle cx="${Bh.x}" cy="${Bh.y}" r="2.4" fill="${COLORS[net]}"/></g>`; }).join('');
-  $('labsvg').innerHTML = defs + `<rect y="60" width="712" height="600" fill="#f3efe3"/>` + boardSvg('R') + boardSvg('L') + espSvg(used) + base + res + mods + wires;
+  $('labsvg').innerHTML = svgFor(INST, { sel: selId, info: { resUsed: LAY.resUsed, bmsRes: SET.avoidBms, note: SET.avoidBms ? 'BMS 보드가 쓴 저항을 빼고 계산' : 'LED 220Ω → 없으면 330Ω, Echo 분배 10kΩ×2' } });
   $('empty').hidden = INST.length > 0;
 }
+const pinRows = I => { const r = I.pins.map(p => p.row); return `${Math.max(...r)}~${Math.min(...r)}행 앞`; };
 function pinVal(I, sig) {
   const r = I.r || {}, v = (I.o && I.o.vis) || {}, L = I.last, k = I.s.key;
   if (r[sig] && typeof r[sig] === 'object' && r[sig].raw != null) return [`${(r[sig].mv / 1000).toFixed(2)}V`, ''];
@@ -202,7 +84,7 @@ function pinVal(I, sig) {
 function updateCircuit() {
   const svg = $('labsvg');
   for (const I of INST) {
-    const g = svg.querySelector(`.inst[data-inst="${I.id}"] > g`);
+    const g = svg.querySelector(`.inst[data-item$="-mod"][data-inst="${I.id}"] > g`);
     if (g) updateModuleSvg(g, I.s, I.e, I.o, I.last);
   }
   svg.querySelectorAll('.wire[data-sig]').forEach(w => {
@@ -326,8 +208,8 @@ function addSensor(n, opts = {}) {
   const s = SENSORS.find(x => x.n === +n); if (!s) return false;
   if (INST.some(I => I.s.n === s.n)) { if (!opts.quiet) toast(`${s.name}은(는) 이미 꽂혀 있어요`); return false; }
   const I = newInst(s, opts); INST.push(I);
-  const res = layoutAll(INST);
-  if (res.fail) { INST.pop(); layoutAll(INST); if (!opts.quiet) toast(res.fail, 3800); return false; }
+  const res = layoutAllI(INST);
+  if (res.fail) { INST.pop(); layoutAllI(INST); if (!opts.quiet) toast(res.fail, 3800); return false; }
   selId = I.id;
   if (!opts.batch) { rebuild(); serialOut(`＋ ${pad2(s.n)} ${s.name} 꽂음 · ${pinSummary(I)}`, 'sys'); }
   return true;
@@ -457,7 +339,7 @@ function ctrlHtml() {
     <div class="swrow"><span id="aL">자동 시나리오 (조작을 자동으로)</span><button type="button" class="switch" role="switch" id="gAuto" aria-checked="${SET.auto}" aria-labelledby="aL"><i></i></button></div>
     <div class="crow"><div class="cl"><span>잡음</span><output id="gNoiseV">${Math.round(SET.noise * 100)}%</output></div><input type="range" id="gNoise" min="0" max="100" value="${Math.round(SET.noise * 100)}" aria-label="잡음"></div>
     <div class="crow"><div class="cl"><span>ADC 필터</span></div><div class="seg" role="radiogroup" aria-label="ADC 필터">${[['', '없음'], ['ma', '이동평균 10'], ['ema', 'EMA α0.2']].map(([f, n]) => `<button type="button" role="radio" data-gf="${f}" aria-checked="${SET.filter === f}">${n}</button>`).join('')}</div></div>`;
-  if (!I) return `<p class="desc">왼쪽 목록의 <b>＋</b>로 센서를 꽂거나 예시 세트를 골라 보세요. 꽂을 때마다 ESP32 핀과 브레드보드 자리, 점퍼선이 자동으로 만들어져요.</p><ul class="tips"><li>3.3V로 동작하는 센서는 위 보드, 5V가 필요한 센서와 출력 모듈은 아래 보드에 꽂혀요.</li><li>아날로그 센서는 ADC1 핀(GPIO32~39)에만 배정돼요.</li><li>릴레이·LED·부저는 '통합 판정'을 따라 자동으로 움직여요.</li></ul>${global}`;
+  if (!I) return `<p class="desc">왼쪽 목록의 <b>＋</b>로 센서를 꽂거나 예시 세트를 골라 보세요. 꽂을 때마다 ESP32 핀과 브레드보드 자리, 점퍼선이 자동으로 만들어져요.</p><ul class="tips"><li>모듈은 보드 밖에 놓여요: 3.3V 센서는 위 보드 위쪽, 5V 센서와 출력 모듈은 아래 보드 아래쪽.</li><li>저항은 키트의 10kΩ·220Ω·330Ω 각 4개 안에서만 써요.</li><li>아날로그 센서는 ADC1 핀(GPIO32~39)에만 배정돼요.</li><li>릴레이·LED·부저는 '통합 판정'을 따라 자동으로 움직여요.</li></ul>${global}`;
   const s = I.s, e = I.e, linked = I.linked && hasBmsCtrl(s);
   const rows = (s.ctrls || []).map(c => {
     if (c.k === 'bms' && linked) return '';
@@ -473,7 +355,7 @@ function ctrlHtml() {
   const knob = (s.ctrls || []).some(c => c.t === 'knob') ? `<div class="knob"><button type="button" class="hbtn" data-knob="-1">◀ 반시계</button><div class="dial" id="dial" aria-hidden="true"></div><button type="button" class="hbtn" data-knob="1">시계 ▶</button></div>` : '';
   const link = hasBmsCtrl(s) ? `<div class="swrow"><span id="lkL">통합 판정 따라가기 <small style="color:var(--faint);font-weight:500">(BMS 출력처럼)</small></span><button type="button" class="switch" role="switch" id="linkSw" aria-checked="${linked}" aria-labelledby="lkL"><i></i></button></div>` : '';
   return `<p class="desc">${esc(s.desc)}</p>
-  <div class="note" style="margin-top:6px"><b>${esc(LANES[I.lane].name)} ${LANES[I.lane].pin}${Math.max(...I.pins.map(p => p.row))}~${LANES[I.lane].pin}${Math.min(...I.pins.map(p => p.row))}</b> · ${esc(Object.entries(I.gpio).map(([sig, g]) => `${sig} → ${g}`).join(', '))}${I.pins.some(p => p.conv) ? '<br>출력 모듈이라 아래 보드 5V 레일에서 전원을 받아요 (신호는 ESP32 3.3V로 충분)' : ''}</div>
+  <div class="note" style="margin-top:6px"><b>${esc(laneName(I.lane))} · ${pinRows(I)}</b> · ${esc(Object.entries(I.gpio).map(([sig, g]) => `${sig} → ${g}`).join(', '))}${I.pins.some(p => p.conv) ? '<br>출력 모듈이라 아래 보드 5V 레일에서 전원을 받아요 (신호는 ESP32 3.3V로 충분)' : ''}</div>
   <h3>${s.isOut ? '출력 조작' : '환경 조작'} <small style="text-transform:none;font-family:var(--f-ui);letter-spacing:0;color:var(--faint)">${linked ? '통합 판정이 이 출력을 움직여요' : SET.auto && s.auto ? '자동 시나리오가 켜져 있어요' : ''}</small></h3>
   ${link}${pad}${knob}${kp}${rows}${hb}
   <div class="crow"><div class="cl"><span>이 센서 고장 주입</span></div><select class="sel" id="iFault"><option value="">정상</option><option value="open"${I.fault === 'open' ? ' selected' : ''}>단선 (신호선 빠짐)</option><option value="short"${I.fault === 'short' ? ' selected' : ''}>단락 (신호선 = 전원)</option><option value="noise"${I.fault === 'noise' ? ' selected' : ''}>잡음 폭증</option><option value="stuck"${I.fault === 'stuck' ? ' selected' : ''}>값 멈춤</option></select></div>
@@ -495,14 +377,15 @@ function pinsHtml() {
 }
 function wireHtml() {
   if (!INST.length) return '<p class="desc">센서를 꽂으면 준비물과 배선표가 여기에 만들어져요.</p>';
-  const all = INST.flatMap(I => I.items), nW = all.filter(i => i.t === 'wire').length + BASE.length, res = {};
-  all.filter(i => i.t === 'res').forEach(r => { res[r.val] = (res[r.val] || 0) + 1; });
-  const bom = [['ESP32 DevKitC V4', '1개'], ['브레드보드 830홀', '2개'], ...INST.map(I => [`${pad2(I.s.n)} ${I.s.name} (${I.s.model})`, I.s.key === 'magiccup' ? '2개' : '1개']), ['수-수(M-M) 점퍼선', `${nW}개`], ...Object.entries(res).map(([v, n]) => [`저항 ${RES_KO[v]} (${BAND_KO[v]})`, `${n}개`])];
-  const sec = I => `<h3>${pad2(I.s.n)} ${esc(I.s.name)}</h3><ul class="wl"><li><span class="sw" style="background:#d6b04d"></span><span><b>모듈</b> → ${esc(LANES[I.lane].name)} ${I.pins.slice().sort((a, b) => b.row - a.row).map(p => `${esc(p.mod.replace(/ \(.+\)/, '').replace(/^[AB]: /, ''))}=${LANES[I.lane].pin}${p.row}`).join(', ')}</span></li>${I.items.map(it => it.t === 'wire' ? `<li><span class="sw" style="background:${COLORS[it.net]}"></span><span><b>${esc(COLOR_KO[it.net])} 선</b>${it.pin ? ` · ${esc(it.pin.replace(/ \(.+\)/, ''))}` : ''}<br>${esc(holeNice(it.from))} → ${esc(holeNice(it.to))}</span></li>` : `<li><span class="sw" style="background:#e2cf9f"></span><span><b>저항 ${esc(RES_KO[it.val])}</b> · ${esc(it.role)}<br>${esc(holeNice(it.a))} ↔ ${esc(holeNice(it.b))}</span></li>`).join('')}</ul>`;
+  const all = INST.flatMap(I => I.items), fm = all.filter(i => i.t === 'wire' && !i.a.h).length, mm = all.filter(i => i.t === 'wire' && i.a.h).length + BASE.length;
+  const ru = LAY.resUsed, bom = [['ESP32 DevKitC V4', '1개'], ['브레드보드 830홀', '2개'], ...INST.map(I => [`${pad2(I.s.n)} ${I.s.name} (${I.s.model})`, I.s.key === 'magiccup' ? '2개' : '1개']), ['암-수(F-M) 점퍼선 (모듈 → 보드)', `${fm}개`], ['수-수(M-M) 점퍼선', `${mm}개`], ...Object.entries(ru).filter(([, n]) => n).map(([v, n]) => [`저항 ${RES_KO[v]} (${BAND_KO[v]})`, `${n}개`])];
+  const stock = ['10k', '220', '330'].map(k => { const used = ru[k] + (SET.avoidBms ? BMS_RES_USED[k] : 0); return `<tr><td>${RES_KO[k]} <span class="kind">${BAND_KO[k]}</span></td><td>${ru[k]}${SET.avoidBms ? ` + BMS ${BMS_RES_USED[k]}` : ''}</td><td><b style="color:${RES_STOCK[k] - used > 0 ? 'var(--green)' : 'var(--lv3)'}">${RES_STOCK[k] - used}</b> / ${RES_STOCK[k]}</td></tr>`; }).join('');
+  const sec = I => `<h3>${pad2(I.s.n)} ${esc(I.s.name)}</h3><ul class="wl"><li><span class="sw" style="background:#d6b04d"></span><span><b>모듈</b> · ${esc(laneName(I.lane))}, ${pinRows(I)} (보드에 꽂지 않음)</span></li>${I.items.filter(it => it.t !== 'module').map(it => it.t === 'wire' ? `<li><span class="sw" style="background:${COLORS[it.net]}"></span><span><b>${esc(COLOR_KO[it.net])} 선</b><br>${esc(epText(it.a, I))} → ${esc(epText(it.b, I))}</span></li>` : `<li><span class="sw" style="background:#e2cf9f"></span><span><b>저항 ${esc(RES_KO[it.val])}</b> · ${esc(it.role)}<br>${esc(holeNice(it.a))} ↔ ${esc(holeNice(it.b))}</span></li>`).join('')}</ul>`;
   return `<h3>준비물</h3><table class="bom"><tbody>${bom.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table>
-  <h3>기본 전원 배선 (BMS 1단계와 같음)</h3><ul class="wl">${BASE.map(([, f, t, net]) => `<li><span class="sw" style="background:${COLORS[net]}"></span><span><b>${esc(COLOR_KO[net])} 선</b><br>${esc(holeNice(f))} → ${esc(holeNice(t))}</span></li>`).join('')}</ul>
+  <h3>저항 재고 <small style="text-transform:none;font-family:var(--f-ui);letter-spacing:0;color:var(--faint)">키트에 종류마다 4개</small></h3><table><thead><tr><th>저항</th><th>사용</th><th>남음</th></tr></thead><tbody>${stock}</tbody></table>
+  <h3>기본 전원 배선</h3><ul class="wl">${BASE.map(b => `<li><span class="sw" style="background:${COLORS[b.net]}"></span><span><b>${esc(COLOR_KO[b.net])} 선</b> · ${esc(b.label)}<br>${esc(holeNice(b.a.h))} → ${esc(holeNice(b.b.h))}</span></li>`).join('')}</ul>
   ${INST.map(sec).join('')}
-  <div class="note">위 보드 레일: + = 3V3, − = GND · 아래 보드 레일: + = 5V, − = GND. 같은 행의 A~E(또는 F~J) 다섯 구멍은 서로 이어져 있어요.</div>`;
+  <div class="note">선은 가로·세로로만 그렸어요. 가로 구간은 보드 가운데 홈 위를, 위·아래 보드를 건너는 선은 ESP32 왼쪽(안테나 쪽) 통로를 지나요. 위 보드 레일: + = 3V3 · 아래 보드 레일: + = 5V.</div>`;
 }
 function bmsHtml() {
   const ins = INST.filter(I => (I.s.rules || []).length), outs = INST.filter(I => hasBmsCtrl(I.s));
