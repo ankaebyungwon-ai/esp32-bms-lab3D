@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>센서 키트 40종 · ESP32 BMS Lab</title>
+<meta name="description" content="빵빵한 아두이노 센서 키트 40종을 가상 데이터로 실험하고, BMS 판정 규칙과 예제 코드(Uno·ESP32)를 함께 확인하는 실습실.">
+<meta name="theme-color" content="#f6f3e8">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://esp32-bms-lab3d.vercel.app/sensors.html">
+<meta property="og:title" content="센서 키트 40종 · ESP32 BMS Lab">
+<meta property="og:description" content="센서 40종을 가상 데이터로 실험하고 BMS 판정과 예제 코드를 확인해 보세요.">
+<meta property="og:image" content="https://esp32-bms-lab3d.vercel.app/og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Roboto+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* index.html과 같은 크림색 작업장 디자인. 왼쪽 = 센서 목록, 가운데 = 실험대, 오른쪽 = 설명·배선·코드·BMS 판정 */
+:root {
+  --bg: #f6f3e8; --card: #faf7ee; --card-border: #e7e2d4; --tile: #fffdf6; --tile-border: #e9e4d8; --line: #ebe6da; --warm-line: #d9d2bf;
+  --ink: #0e1932; --ink-soft: #2b3346; --muted: #5d6272; --faint: #8a8d96; --track: #e1dfd8; --terminal: #13203a;
+  --yellow-hi: #ffdd84; --yellow: #fdd062; --yellow-lo: #f6c047; --yellow-ink: #2b2611;
+  --navy-hi: #284a70; --navy: #1e3a5c; --navy-deep: #13203a; --green: #1f9a78; --green-hi: #2fb38f;
+  --lv0: #1e9e55; --lv1: #e6b800; --lv2: #f07f12; --lv3: #d62f2f; --trip: #2563c9;
+  --f-display: "Oswald", "Noto Sans KR", "Arial Narrow", sans-serif;
+  --f-ui: "Roboto Condensed", "Noto Sans KR", "Arial Narrow", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --r-card: 18px; --r-tile: 12px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-ui); font-size: 14.5px; line-height: 1.55; overflow: hidden; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2.5px solid var(--navy-hi); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }
+
+.app { height: 100%; display: grid; grid-template-rows: 68px 1fr; }
+.top { display: flex; align-items: center; gap: 14px; padding: 0 18px; min-width: 0; }
+.logo { width: 40px; height: 40px; border-radius: 11px; background: linear-gradient(180deg, var(--navy-hi), var(--navy)); display: grid; place-items: center; flex: none; box-shadow: 0 2px 0 var(--navy-deep); text-decoration: none; }
+.word { font-family: "Oswald", sans-serif; font-weight: 700; font-size: 25px; letter-spacing: 1.5px; line-height: 1; white-space: nowrap; color: var(--ink); text-decoration: none; }
+.word em { font-style: normal; color: var(--green); }
+.sep { width: 1px; height: 30px; background: var(--warm-line); }
+.credit { display: flex; align-items: center; gap: 8px; color: var(--ink); text-decoration: none; line-height: 1.15; }
+.credit .gh { width: 30px; height: 30px; border-radius: 8px; background: var(--ink); display: grid; place-items: center; }
+.credit small { display: block; color: var(--faint); font-size: 11px; }
+.credit b { font-size: 13px; font-weight: 600; }
+.spacer { flex: 1; }
+.tlabel { color: var(--muted); font-size: 13px; }
+.segtop { display: flex; background: var(--tile); border: 1px solid var(--card-border); border-radius: 12px; padding: 3px; gap: 2px; }
+.segtop a, .segtop button { border: 0; background: none; padding: 6px 14px; border-radius: 9px; font-weight: 700; font-size: 13.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap; }
+.segtop [aria-pressed="true"], .segtop [aria-current="page"] { background: linear-gradient(180deg, var(--navy-hi), var(--navy)); color: #fff; box-shadow: 0 2px 0 var(--navy-deep); }
+.iconbtn { width: 38px; height: 38px; border: 1px solid var(--card-border); background: var(--tile); border-radius: 12px; display: grid; place-items: center; flex: none; }
+.iconbtn[aria-pressed="true"] { background: radial-gradient(circle at 40% 30%, var(--yellow-hi), var(--yellow) 55%, var(--yellow-lo)); border-color: var(--yellow-lo); }
+
+.card { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--r-card); box-shadow: 0 1px 0 rgba(14,25,50,.04), 0 10px 30px -18px rgba(14,25,50,.25); }
+.main { display: grid; grid-template-columns: 252px minmax(0, 1fr) 400px; gap: 14px; padding: 0 18px 18px; min-height: 0; }
+
+/* 왼쪽: 센서 목록 */
+.list { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+.lhead { padding: 14px 14px 8px; }
+.lhead h2 { margin: 0 0 8px; font-family: var(--f-display); font-weight: 600; font-size: 18px; letter-spacing: .5px; display: flex; align-items: baseline; gap: 8px; }
+.lsub { margin: -6px 0 8px; font-size: 11.5px; color: var(--muted); }
+.lhead h2 small { font-family: var(--f-ui); font-size: 12px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+.search { width: 100%; border: 1px solid var(--card-border); background: var(--tile); border-radius: 10px; padding: 7px 10px; font-size: 13.5px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 14px 8px; }
+.chips button { border: 1px solid var(--card-border); background: var(--tile); border-radius: 99px; padding: 2px 9px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.chips button[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+.sl { list-style: none; margin: 0; padding: 0 8px 10px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--warm-line) transparent; }
+.sl button { width: 100%; display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px; border: 1.5px solid transparent; background: none; border-radius: 11px; padding: 5px 7px; text-align: left; }
+.sl button:hover { background: var(--tile); border-color: var(--tile-border); }
+.sl button.on { background: #fff8e2; border-color: var(--yellow-lo); }
+.sl .no { font-family: var(--f-mono); font-size: 11px; font-weight: 700; color: #fff; background: var(--navy); border-radius: 6px; text-align: center; padding: 1px 0; }
+.sl button.on .no { background: var(--yellow); color: var(--yellow-ink); }
+.sl .nm { font-weight: 600; font-size: 13.5px; line-height: 1.2; }
+.sl .nm small { display: block; font-weight: 500; font-size: 11px; color: var(--faint); }
+.ctag { font-family: var(--f-mono); font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: var(--track); color: var(--ink-soft); }
+.ctag.out { background: #fde8c4; color: #7a4a00; } .ctag.ain { background: #d9ecf7; color: #134a6b; } .ctag.cmp { background: #f7dcdc; color: #7a1f1f; } .ctag.bus { background: #e2e0f5; color: #33296b; } .ctag.din { background: #d8efe5; color: #0f5a43; }
+.ldot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-left: 4px; vertical-align: 1px; }
+
+/* 가운데: 실험대 */
+.bench { position: relative; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; scrollbar-color: var(--warm-line) transparent; }
+.bhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chipi { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 40% 30%, var(--yellow-hi), var(--yellow) 55%, var(--yellow-lo)); display: grid; place-items: center; box-shadow: 0 2px 0 #d9a92f; flex: none; }
+.bhead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; font-weight: 600; line-height: 1.1; }
+.bhead p { margin: 0; color: var(--muted); font-size: 11.5px; }
+.status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; background: var(--tile); border: 1px solid var(--card-border); font-size: 12.5px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.status i { width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--lv0)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--lv0)) 25%, transparent); }
+.status.live i { --c: var(--green); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--green) 10%, transparent); } }
+.btools { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.tbtn { height: 34px; min-width: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--card-border); background: var(--tile); display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-weight: 700; font-size: 12.5px; }
+.tbtn[aria-pressed="true"] { background: radial-gradient(circle at 40% 30%, var(--yellow-hi), var(--yellow) 55%, var(--yellow-lo)); border-color: var(--yellow-lo); }
+.seg { display: flex; background: var(--track); border-radius: 11px; padding: 3px; gap: 2px; }
+.seg button { flex: 1; border: 0; background: none; border-radius: 8px; padding: 5px 9px; font-weight: 700; font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; }
+.seg button[aria-checked="true"] { background: linear-gradient(180deg, var(--navy-hi), var(--navy)); color: #fff; box-shadow: 0 2px 0 var(--navy-deep); }
+
+.bgrid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 12px; }
+.panelbox { background: var(--tile); border: 1px solid var(--tile-border); border-radius: 14px; padding: 10px 12px; }
+.viz { display: flex; flex-direction: column; gap: 8px; }
+#modsvg { width: 100%; height: auto; display: block; background: repeating-linear-gradient(0deg, transparent 0 19px, #efeadc 19px 20px), repeating-linear-gradient(90deg, transparent 0 19px, #efeadc 19px 20px), #f9f6ec; border-radius: 10px; border: 1px solid var(--tile-border); }
+.pins { display: flex; flex-wrap: wrap; gap: 6px; }
+.pchip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--tile-border); background: #fff; border-radius: 9px; padding: 3px 8px; }
+.pchip b { font-family: var(--f-mono); font-size: 11.5px; }
+.pchip .pv { font-family: var(--f-mono); font-weight: 700; font-size: 11.5px; padding: 0 6px; border-radius: 6px; background: var(--track); min-width: 38px; text-align: center; }
+.pchip .pv.hi { background: color-mix(in srgb, var(--green) 18%, #fff); color: #0f5a43; }
+.pchip .pv.lo { background: #e9edf3; color: var(--navy); }
+.pchip .pp { color: var(--faint); font-size: 11px; }
+
+.ctrl h3, .bench h3 { font-family: var(--f-display); font-weight: 600; font-size: 12.5px; letter-spacing: .6px; color: var(--muted); margin: 0 0 6px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+.ctrl h3 small { font-family: var(--f-ui); text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--faint); }
+.crow { margin: 6px 0 10px; }
+.crow .cl { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: 13px; }
+.crow .cl output { font-family: var(--f-mono); font-size: 12px; color: var(--navy); font-weight: 700; }
+input[type=range] { width: 100%; accent-color: var(--navy); margin: 2px 0 0; }
+select.sel { width: 100%; border: 1px solid var(--card-border); background: #fff; border-radius: 9px; padding: 5px 8px; font-size: 13px; margin-top: 3px; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.hbtn { border: 0; border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 13px; color: #fff; background: linear-gradient(180deg, var(--navy-hi), var(--navy)); box-shadow: 0 2px 0 var(--navy-deep); user-select: none; -webkit-user-select: none; touch-action: none; }
+.hbtn[aria-pressed="true"] { background: linear-gradient(180deg, var(--green-hi), var(--green)); box-shadow: 0 2px 0 #11624c, 0 0 0 4px color-mix(in srgb, var(--green) 22%, transparent); }
+.hbtn.y { background: linear-gradient(180deg, #ffd977, var(--yellow-lo)); color: var(--yellow-ink); box-shadow: 0 2px 0 #d9a92f; }
+.swrow { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; gap: 10px; font-weight: 600; font-size: 13px; }
+.switch { width: 44px; height: 24px; border-radius: 99px; border: 0; background: var(--track); position: relative; padding: 0; flex: none; }
+.switch i { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s; }
+.switch[aria-checked="true"] { background: var(--navy); }
+.switch[aria-checked="true"] i { left: 23px; }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 6px 0 10px; }
+.keypad button { border: 1px solid #2c3a57; background: #1c2a45; color: #fff; border-radius: 9px; padding: 6px 0; font-weight: 700; font-size: 12.5px; font-family: var(--f-mono); }
+.keypad button:active, .keypad button.hit { background: var(--yellow); color: var(--yellow-ink); }
+.pad { width: 150px; height: 150px; border-radius: 50%; margin: 6px auto 10px; background: radial-gradient(circle, #fff 0 30%, #ece7da 31% 100%); border: 1px solid var(--warm-line); position: relative; touch-action: none; cursor: grab; }
+.pad i { position: absolute; width: 46px; height: 46px; border-radius: 50%; left: 52px; top: 52px; background: radial-gradient(circle at 40% 35%, #4b5568, #1b2232 70%); box-shadow: 0 3px 6px rgba(0,0,0,.35); pointer-events: none; }
+.knob { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 6px 0 10px; }
+.knob .dial { width: 64px; height: 64px; border-radius: 50%; background: conic-gradient(from 0deg, #3a4559, #1b2232, #3a4559, #1b2232, #3a4559); border: 3px solid #c9c2ad; position: relative; }
+.knob .dial::after { content: ""; position: absolute; left: 50%; top: 5px; width: 4px; height: 18px; margin-left: -2px; background: var(--yellow); border-radius: 2px; }
+.cond { border-top: 1px dashed var(--warm-line); margin-top: 8px; padding-top: 8px; }
+.cond .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.cond.off > :not(h3) { opacity: .45; pointer-events: none; }
+
+.tiles { display: flex; flex-wrap: wrap; gap: 8px; }
+.tile { background: var(--tile); border: 1px solid var(--tile-border); border-radius: var(--r-tile); padding: 6px 12px 7px; min-width: 92px; flex: 1 1 92px; box-shadow: 0 1px 0 rgba(14,25,50,.05); }
+.tile small { display: block; color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile b { font-family: var(--f-display); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 11px; color: var(--muted); margin-left: 2px; }
+.tile.lvt b { font-size: 16px; }
+.tile .lv { color: #fff; margin-left: 0; } .tile .lv1 { color: #1d2428; }
+.tile.lvt .lv { font-size: 14px; padding: 3px 10px; border-radius: 7px; margin-top: 3px; }
+
+.chartbox { background: var(--tile); border: 1px solid var(--tile-border); border-radius: 14px; padding: 8px 10px 6px; }
+.chartbox canvas { width: 100%; height: 170px; display: block; }
+.flab { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+.flab i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.flab .r { margin-left: auto; font-family: var(--f-mono); }
+
+.term { background: var(--terminal); border-radius: var(--r-tile); overflow: hidden; color: #cfe0f5; }
+.thead { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12px; color: #9fb1c6; border-bottom: 1px solid #22314f; flex-wrap: wrap; }
+.thead .tl { display: flex; align-items: center; gap: 8px; }
+.term pre { margin: 0; height: 168px; overflow: auto; padding: 8px 10px; font: 11.3px/1.55 var(--f-mono); color: #6ee7b7; white-space: pre-wrap; word-break: break-all; }
+.term pre .tx { color: var(--yellow); } .term pre .sys { color: #8ea3c2; }
+.mini { border: 1px solid #34466a; background: #1b2b4a; color: #dbe6f5; border-radius: 7px; padding: 2px 9px; font-size: 11.5px; }
+.mini.y { background: var(--yellow); border-color: var(--yellow-lo); color: var(--yellow-ink); font-weight: 700; }
+.mini:disabled { opacity: .45; cursor: default; }
+.tfoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; border-top: 1px solid #22314f; font-size: 11.5px; color: #8ea3c2; flex-wrap: wrap; }
+
+/* 오른쪽 패널 */
+.panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+.phead { display: flex; gap: 12px; align-items: center; padding: 16px 18px 10px; }
+.num { width: 44px; height: 44px; border-radius: 50%; flex: none; display: grid; place-items: center; font-family: var(--f-display); font-weight: 700; font-size: 18px; color: var(--yellow-ink); background: radial-gradient(circle at 40% 30%, var(--yellow-hi), var(--yellow) 55%, var(--yellow-lo)); box-shadow: 0 2px 0 #d9a92f; }
+.kick { font-size: 11.5px; color: var(--muted); font-weight: 600; letter-spacing: .3px; }
+.phead h1 { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 25px; line-height: 1.15; text-wrap: balance; }
+.ptabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.ptabs button { border: 0; background: none; padding: 8px 10px; font-weight: 700; font-size: 13px; color: var(--muted); border-bottom: 2.5px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.ptabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--yellow-lo); }
+.pbody { overflow-y: auto; padding: 12px 18px 18px; scrollbar-width: thin; scrollbar-color: var(--warm-line) transparent; }
+.pbody h3 { font-family: var(--f-display); font-weight: 600; font-size: 13px; letter-spacing: .6px; color: var(--muted); margin: 16px 0 8px; text-transform: uppercase; }
+.pbody h3:first-child { margin-top: 2px; }
+.desc { margin: 0 0 6px; color: var(--ink-soft); }
+.tips { margin: 6px 0 0; padding-left: 18px; color: var(--ink-soft); }
+.tips li { margin: 4px 0; }
+.tips li.warn { color: var(--lv3); font-weight: 600; }
+.note { margin-top: 10px; background: var(--tile); border: 1px solid var(--tile-border); border-radius: var(--r-tile); padding: 9px 11px; font-size: 13px; color: var(--ink-soft); }
+.note.use { background: #fff8e2; border-color: var(--yellow-lo); }
+.note b { color: var(--ink); }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11.5px; color: var(--muted); }
+td.pin { font-family: var(--f-mono); font-weight: 700; white-space: nowrap; }
+th.cur, td.cur { background: #fff8e2; }
+.hole { font-size: 11.5px; font-weight: 700; padding: 2px 7px; border-radius: 7px; background: var(--navy); color: #fff; white-space: nowrap; font-family: var(--f-mono); }
+.lv { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 5px; color: #fff; font-family: var(--f-ui); white-space: nowrap; }
+.lv0 { background: var(--lv0); } .lv1 { background: var(--lv1); color: #1d2428; } .lv2 { background: var(--lv2); } .lv3 { background: var(--lv3); } .lv4 { background: var(--trip); }
+.thin { width: 58px; border: 1px solid var(--card-border); border-radius: 7px; padding: 2px 5px; font-family: var(--f-mono); font-size: 12px; text-align: right; background: #fff; }
+.rule.hit td { background: color-mix(in srgb, var(--c) 12%, transparent); }
+.codeterm pre { height: auto; max-height: none; min-height: 240px; color: #dfe6ee; white-space: pre; word-break: normal; overflow-x: auto; }
+.code .c { color: #7e93b3; } .code .k { color: #7cc7ff; } .code .n { color: var(--yellow); } .code .p { color: #f0a6ff; }
+.ttabs { display: flex; gap: 2px; padding: 4px 6px 0; border-bottom: 1px solid #22314f; }
+.ttabs button { border: 0; background: none; color: #8ea3c2; padding: 7px 10px; font-weight: 700; font-size: 12.5px; border-bottom: 2px solid transparent; white-space: nowrap; }
+.ttabs button[aria-selected="true"] { color: #fff; border-bottom-color: var(--yellow); }
+.nums { margin: 6px 0 10px; padding-left: 20px; color: var(--ink-soft); }
+.nums li { margin: 3px 0; }
+.ybtn { border: 0; border-radius: 11px; padding: 9px 14px; font-weight: 700; color: var(--yellow-ink); background: linear-gradient(180deg, #ffd977, var(--yellow-lo)); box-shadow: 0 2px 0 #d9a92f; white-space: nowrap; }
+.ybtn.sm { padding: 6px 11px; font-size: 13px; }
+.ghostbtn { border: 1px solid var(--card-border); background: var(--tile); border-radius: 11px; padding: 6px 11px; font-weight: 700; font-size: 13px; }
+.tripbox { display: flex; align-items: center; gap: 10px; background: var(--tile); border: 1px solid var(--tile-border); border-radius: var(--r-tile); padding: 10px 12px; }
+.tripbox .big { flex: 1; }
+.tripbox .big b { display: block; font-family: var(--f-display); font-size: 17px; letter-spacing: .3px; line-height: 1.25; }
+.tripbox .big span { display: block; font-size: 12px; color: var(--muted); }
+.relayic { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: var(--c, var(--lv0)); color: #fff; flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c, var(--lv0)) 22%, transparent); }
+.kbd { font-family: var(--f-mono); font-size: 11px; background: var(--tile); border: 1px solid var(--warm-line); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; color: var(--ink); }
+.banner { margin: 0 18px 10px; background: #fff8e2; border: 1px solid var(--yellow-lo); border-radius: 12px; padding: 7px 12px; font-size: 13px; }
+.toast { position: fixed; left: 50%; top: 78px; transform: translate(-50%, -8px); background: var(--terminal); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s, transform .2s; z-index: 30; pointer-events: none; max-width: 90vw; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.listsel { display: none; }
+
+@media (max-width: 1360px) {
+  .main { grid-template-columns: minmax(0, 1fr) 380px; }
+  .list { display: none; }
+  .listsel { display: block; flex: 1 1 100%; }
+  .credit, .sep { display: none; }
+}
+@media (max-width: 1040px) { .bgrid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  .app { height: auto; grid-template-rows: auto auto; }
+  .top { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
+  .tlabel { display: none; }
+  .main { grid-template-columns: 1fr; padding: 0 10px 14px; }
+  .bench, .panel { overflow: visible; }
+  .pbody { overflow: visible; }
+  .word { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) { .switch i, .toast { transition: none; } .status.live i { animation: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="logo" href="index.html" aria-label="ESP32 BMS Lab 처음으로"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="16" height="12" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><rect x="19.5" y="9.5" width="2" height="5" rx="1" fill="#fff"/><path d="M12.2 7.8 8.4 12.6h3l-1 3.6 3.8-4.8h-3z" fill="#fdd062"/></svg></a>
+    <a class="word" href="index.html">ESP32 BMS <em>LAB</em></a>
+    <span class="sep" aria-hidden="true"></span>
+    <a class="credit" href="https://github.com/ankaebyungwon-ai/esp32-bms-lab3D"><span class="gh" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="#fff"><path d="M8 0a8 8 0 0 0-2.5 15.6c.4 0 .5-.2.5-.4v-1.5c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.3 1.9.9 2.3.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-4 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.5 7.5 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.4 1.1.2 1.9.1 2.1.5.6.8 1.3.8 2.1 0 3.1-1.9 3.7-3.6 3.9.3.3.6.8.6 1.5v2.2c0 .2.1.5.6.4A8 8 0 0 0 8 0z"/></svg></span><span><small>소스 코드</small><b>github · esp32-bms-lab3D</b></span></a>
+    <span class="spacer"></span>
+    <span class="tlabel">보기</span>
+    <nav class="segtop" aria-label="보기">
+      <a href="index.html#parts"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>조립</a>
+      <a href="index.html#run"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>실험</a>
+      <a href="sensors.html" aria-current="page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>센서 40종</a>
+    </nav>
+    <span class="tlabel">보드</span>
+    <div class="seg" role="radiogroup" aria-label="보드" id="boardSeg">
+      <button type="button" role="radio" data-board="esp32" aria-checked="true">ESP32</button>
+      <button type="button" role="radio" data-board="uno" aria-checked="false">Uno</button>
+    </div>
+    <button type="button" class="iconbtn" id="sound" aria-pressed="false" aria-label="부저 소리를 스피커로 듣기" title="부저 소리를 스피커로 듣기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
+  </header>
+  <div class="banner" id="langBanner" hidden>This page (sensor kit · 40 modules) is currently available in Korean only. <a href="index.html">Back to the BMS lab</a></div>
+
+  <div class="main">
+    <nav class="card list" aria-label="센서 목록">
+      <div class="lhead">
+        <h2>센서 키트 40종</h2><p class="lsub">빵빵한 아두이노 센서 키트 · 매뉴얼 번호 순</p>
+        <input class="search" id="q" type="search" placeholder="이름·모델·번호 검색" aria-label="센서 검색">
+      </div>
+      <div class="chips" id="cats" role="group" aria-label="종류"></div>
+      <ul class="sl" id="slist"></ul>
+    </nav>
+
+    <section class="card bench" id="bench" aria-label="가상 실험대">
+      <div class="bhead">
+        <span class="chipi" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2b2611" stroke-width="2.4"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+        <div>
+          <h2><span id="bName"></span> <span class="status" id="bStatus"><i></i><span id="bLv">정상</span></span> <span class="status" id="bSrc"><i></i><span id="bSrcT">시뮬레이터</span></span></h2>
+          <p id="bSub"></p>
+        </div>
+        <select class="sel listsel" id="listSel" aria-label="센서 고르기"></select>
+        <div class="btools">
+          <button type="button" class="tbtn" id="play" aria-pressed="true" title="일시정지 / 재생" aria-label="일시정지"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+          <button type="button" class="tbtn" id="speed" title="시뮬레이션 속도">×1</button>
+          <button type="button" class="tbtn" id="resetSim" title="이 센서 실험 초기화">초기화</button>
+        </div>
+      </div>
+
+      <div class="bgrid">
+        <div class="viz panelbox">
+          <svg id="modsvg" viewBox="0 0 340 210" role="img" aria-label="가상 모듈"></svg>
+          <div class="pins" id="pinChips" aria-live="off"></div>
+        </div>
+        <div class="ctrl panelbox">
+          <h3 id="ctrlTitle">환경 조작 <small>센서가 느끼는 세상</small></h3>
+          <div id="ctrls"></div>
+          <div class="cond" id="cond">
+            <h3>실험 조건 <small>가상 데이터 만들기</small></h3>
+            <div class="swrow"><span id="autoLabel">자동 시나리오 (조작을 자동으로)</span><button type="button" class="switch" role="switch" id="auto" aria-checked="false" aria-labelledby="autoLabel"><i></i></button></div>
+            <div class="grid2">
+              <div class="crow inonly"><div class="cl"><span>잡음</span><output id="noiseV">30%</output></div><input type="range" id="noise" min="0" max="100" value="30" aria-label="잡음"></div>
+              <div class="crow inonly"><div class="cl"><span>고장 주입</span></div><select class="sel" id="fault" aria-label="고장 주입"><option value="">정상</option><option value="open">단선 (신호선 빠짐)</option><option value="short">단락 (신호선 = 전원)</option><option value="noise">잡음 폭증</option><option value="stuck">값 멈춤</option></select></div>
+            </div>
+            <div class="crow inonly anonly"><div class="cl"><span>ADC 필터</span><small class="kind" style="color:var(--faint)">BMS 펌웨어와 같은 방법</small></div>
+              <div class="seg" role="radiogroup" aria-label="ADC 필터" id="filterSeg"><button type="button" role="radio" data-f="" aria-checked="true">없음</button><button type="button" role="radio" data-f="ma" aria-checked="false">이동평균 10</button><button type="button" role="radio" data-f="ema" aria-checked="false">EMA α0.2</button></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tiles" id="tiles" aria-live="off"></div>
+
+      <div class="chartbox">
+        <canvas id="chart" width="900" height="170" aria-label="최근 60초 그래프"></canvas>
+        <div class="flab" id="legend"></div>
+      </div>
+
+      <div class="term">
+        <div class="thead">
+          <div class="tl"><b style="color:#fff">시리얼 모니터</b><span class="mono" id="baudT">115200 baud</span><span id="realHint"></span></div>
+          <div class="tl"><button type="button" class="mini y" id="conn">실제 보드 연결</button><button type="button" class="mini" id="clr">지우기</button></div>
+        </div>
+        <pre id="serial" tabindex="0" aria-label="시리얼 출력"></pre>
+        <div class="tfoot"><span id="logInfo">기록 0줄</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="mini" id="csv">CSV 저장</button><button type="button" class="mini" id="gen10">가상 데이터 10분 바로 만들기</button></span></div>
+      </div>
+    </section>
+
+    <aside class="card panel" aria-label="센서 설명">
+      <div class="phead"><span class="num" id="pnum">01</span><div><div class="kick" id="pkick"></div><h1 id="ptitle"></h1></div></div>
+      <div class="ptabs" role="tablist" id="ptabs">
+        <button type="button" role="tab" data-tab="info" aria-selected="true">설명</button>
+        <button type="button" role="tab" data-tab="wire" aria-selected="false">배선</button>
+        <button type="button" role="tab" data-tab="code" aria-selected="false">코드</button>
+        <button type="button" role="tab" data-tab="bms" aria-selected="false">BMS 판정</button>
+      </div>
+      <div class="pbody" id="pbody" role="tabpanel"></div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script type="module" src="sensors.js"></script>
+</body>
+</html>

@@ -3,6 +3,7 @@ window.I18N = (() => {
   const LANGS = { ko: '한국어', en: 'English', ja: '日本語', zh: '中文' };
   const IDX = { en: 0, ja: 1, zh: 2 };
   const D = {
+"센서 40종": ["40 Sensors", "センサー40種", "传感器40种"],
 "아직 기록이 없어요": ["No data logged yet", "まだ記録がありません", "还没有记录"],
 "실제 보드 연결됨": ["Real board connected", "実機ボード接続中", "已连接实际板"],
 "실제 보드 연결": ["Connect real board", "実機ボードを接続", "连接实际板"],
