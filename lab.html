@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="ESP32 배터리 관리 회로 3D 모형">
+<meta name="theme-color" content="#2D6A4F">
+<title>BMS 3D 회로 — RE:CELL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body data-page="lab">
+<a class="skip" href="#main">본문 바로가기</a>
+<header>
+  <div class="wrap hd">
+    <a class="logo" href="index.html" aria-label="RE:CELL 홈"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="9" y="8" width="20" height="28" rx="5" fill="#2D6A4F"/><rect x="15" y="4" width="8" height="5" rx="2" fill="#2D6A4F"/><rect x="13" y="24" width="12" height="8" rx="2" fill="#95D5B2"/><path d="M27 20c7-9 13-6 13-6s-1 9-11 10c-1 0-2-1-2-4z" fill="#FFD60A"/></svg><span><b>RE:CELL</b><small>BATTERY AFTERLIFE</small></span></a>
+    <nav class="main" id="mainNav" aria-label="주 메뉴"><a href="process.html">순환 공정</a><a href="companies.html">기업 사례</a><a href="topics.html">20개 주제</a><a href="lab.html" aria-current="page">BMS 3D 회로</a><a href="references.html">참고자료</a><a href="about.html">소개</a></nav>
+    <a class="btn sun" href="index.html#journey">순환 여정 ▶</a>
+    <button class="mbtn" id="mbtn" type="button" aria-expanded="false" aria-controls="mainNav" aria-label="메뉴 열기"><i></i><i></i><i></i></button>
+  </div>
+</header>
+<nav class="crumbs wrap" aria-label="현재 위치"><ol><li><a href="index.html">홈</a></li><li aria-current="page">BMS 3D 회로</li></ol></nav>
+<main id="main">
+<section class="band lab3d" id="lab3d" aria-labelledby="l3T" style="padding-top:36px">
+  <div class="wrap">
+    <div class="kick"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="7" width="16" height="8" rx="2" fill="#2D6A4F"/><circle cx="6" cy="11" r="1.6" fill="#FFD60A"/></svg>BMS 3D 회로</div>
+    <h1 id="l3T" class="h1s">우리가 만든 배터리 관리 회로를 돌려 보세요</h1>
+    <p class="lead" style="margin-top:14px">ESP32가 셀 전압·전류·온도를 재서 다섯 단계로 판정하고, 위험하면 릴레이로 부하를 끊습니다. 끌어서 돌리고, 부품을 누르면 설명이 나옵니다.</p>
+    <div class="l3grid">
+      <div class="stage3">
+        <div class="c3d" id="c3d" role="img" aria-label="ESP32 BMS 회로 3D 모형: 브레드보드 두 장 위 ESP32, 뒤쪽 TFT 화면, 앞쪽 릴레이·온도센서·부저·RGB LED·버튼과 점퍼선"><p class="loading">3D 회로를 불러오는 중…</p></div>
+        <div class="tip" id="tip3d" hidden></div>
+        <div class="ctl" id="ctl3d">
+          <button type="button" id="vIso">처음 시점</button>
+          <button type="button" id="vRot" aria-pressed="false">자동 회전</button>
+          <button type="button" id="vIn" aria-label="확대">＋</button>
+          <button type="button" id="vOut" aria-label="축소">－</button>
+        </div>
+        <button type="button" class="touch" id="vTouch" hidden>터치해서 3D 조작</button>
+      </div>
+      <div class="panel3">
+        <h3 class="ph3">판정 단계 <small>가상 데이터</small></h3>
+        <div class="lv" id="lvBtns" role="group" aria-label="판정 단계 고르기"></div>
+        <div class="readout" id="readout" aria-live="polite"></div>
+        <h3 class="ph3">부품 <small>누르면 3D에서 들어 올려요</small></h3>
+        <ul class="plist" id="plist"></ul>
+        <p class="pinfo" id="pinfo">부품을 누르면 여기에 설명이 나와요</p>
+      </div>
+    </div>
+    <p class="note">배선은 한눈에 보이도록 간략화했어요. 판정 값은 학습용 가상 데이터입니다.</p>
+  </div>
+</section>
+
+
+</main>
+<nav class="pager wrap" aria-label="페이지 넘기기"><a rel="prev" class="prev" href="topics.html"><small>← 이전</small><b>20개 주제</b></a><a rel="next" class="next" href="references.html"><small>다음 →</small><b>참고자료</b></a></nav>
+<footer>
+  <div class="wrap fgrid">
+    <div>
+      <a class="logo" href="index.html" aria-label="RE:CELL 홈"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="9" y="8" width="20" height="28" rx="5" fill="#95D5B2"/><rect x="15" y="4" width="8" height="5" rx="2" fill="#95D5B2"/><rect x="13" y="24" width="12" height="8" rx="2" fill="#2D6A4F"/><path d="M27 20c7-9 13-6 13-6s-1 9-11 10c-1 0-2-1-2-4z" fill="#FFD60A"/></svg><span><b>RE:CELL</b><small>BATTERY AFTERLIFE</small></span></a>
+      <h4 style="margin-top:18px">학생 연구 · 비영리 교육 목적</h4>
+      <p>폐배터리 활용방안 조사 과제를 웹으로 정리한 사이트입니다. 언급된 기업과 관련이 없으며, 기업명은 사실 설명을 위해서만 썼고 로고는 쓰지 않았습니다. 모든 그림과 애니메이션은 직접 그렸습니다.</p>
+    </div>
+    <div class="fcol"><h4>둘러보기</h4><a href="index.html">홈 · 순환 여정</a><a href="process.html">순환 공정</a><a href="companies.html">기업 사례</a><a href="topics.html">20개 주제</a></div>
+    <div class="fcol"><h4>더 보기</h4><a href="lab.html">BMS 3D 회로</a><a href="references.html">참고자료</a><a href="about.html">사이트 소개</a></div>
+  </div>
+  <div class="wrap fbot">© 2026 RE:CELL · Battery Recycling Research Project</div>
+</footer>
+<script src="assets/common.js"></script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module" src="assets/lab3d.js"></script>
+</body>
+</html>

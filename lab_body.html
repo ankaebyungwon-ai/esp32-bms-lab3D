@@ -1,0 +1,30 @@
+<section class="band lab3d" id="lab3d" aria-labelledby="l3T" style="padding-top:36px">
+  <div class="wrap">
+    <div class="kick"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="7" width="16" height="8" rx="2" fill="#2D6A4F"/><circle cx="6" cy="11" r="1.6" fill="#FFD60A"/></svg>BMS 3D 회로</div>
+    <h1 id="l3T" class="h1s">우리가 만든 배터리 관리 회로를 돌려 보세요</h1>
+    <p class="lead" style="margin-top:14px">ESP32가 셀 전압·전류·온도를 재서 다섯 단계로 판정하고, 위험하면 릴레이로 부하를 끊습니다. 끌어서 돌리고, 부품을 누르면 설명이 나옵니다.</p>
+    <div class="l3grid">
+      <div class="stage3">
+        <div class="c3d" id="c3d" role="img" aria-label="ESP32 BMS 회로 3D 모형: 브레드보드 두 장 위 ESP32, 뒤쪽 TFT 화면, 앞쪽 릴레이·온도센서·부저·RGB LED·버튼과 점퍼선"><p class="loading">3D 회로를 불러오는 중…</p></div>
+        <div class="tip" id="tip3d" hidden></div>
+        <div class="ctl" id="ctl3d">
+          <button type="button" id="vIso">처음 시점</button>
+          <button type="button" id="vRot" aria-pressed="false">자동 회전</button>
+          <button type="button" id="vIn" aria-label="확대">＋</button>
+          <button type="button" id="vOut" aria-label="축소">－</button>
+        </div>
+        <button type="button" class="touch" id="vTouch" hidden>터치해서 3D 조작</button>
+      </div>
+      <div class="panel3">
+        <h3 class="ph3">판정 단계 <small>가상 데이터</small></h3>
+        <div class="lv" id="lvBtns" role="group" aria-label="판정 단계 고르기"></div>
+        <div class="readout" id="readout" aria-live="polite"></div>
+        <h3 class="ph3">부품 <small>누르면 3D에서 들어 올려요</small></h3>
+        <ul class="plist" id="plist"></ul>
+        <p class="pinfo" id="pinfo">부품을 누르면 여기에 설명이 나와요</p>
+      </div>
+    </div>
+    <p class="note">배선은 한눈에 보이도록 간략화했어요. 판정 값은 학습용 가상 데이터입니다.</p>
+  </div>
+</section>
+
